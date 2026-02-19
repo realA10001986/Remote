@@ -137,6 +137,8 @@ bool useRotEnc = false;
 static bool useBPack = true;
 static bool useRotEncVol = false;
 
+bool showUpdAvail = true;
+
 bool        remoteAllowed = false;
 uint32_t    myRemID = 0x12345678;
 
@@ -186,8 +188,13 @@ static unsigned long volchgtimer = 0;
 static bool          offDisplayTimer = false;
 static unsigned long offDisplayNow = 0;
 
-uint16_t visMode = 0;
-bool     movieMode = true;
+#define  VISB_MOV_MD 0    // No longer part of visMode (transitional)
+#define  VISB_DGPS   1    // No longer part of visMode (transitional)
+#define  VISB_AT     2
+#define  VISB_COAST  3
+#define  VISB_PWRM   7
+uint16_t visMode   = (DEF_AT<<VISB_AT)|(DEF_COAST<<VISB_COAST)|(DEF_PWR_MST<<VISB_PWRM);
+bool     movieMode = DEF_MOV_MD;
 
 static bool          etmr = false;
 static unsigned long enow = 0;
@@ -425,7 +432,7 @@ static int16_t       tcdCurrSpeed = -1;
 //static bool          tcdSpdIsRotEnc = false;
 //static bool          tcdSpdIsRemote = false;
 static int16_t       currSpeedOldGPS = -2;
-bool                 displayGPSMode = false;
+bool                 displayGPSMode = DEF_DISP_GPS;
 uint16_t             tcdIsInP0 = 0, tcdIsInP0Old = 1000;
 static uint16_t      tcdSpeedP0 = 0, tcdSpeedP0Old = 1000;
 static uint16_t      tcdIsInP0stalled = 0;
@@ -470,6 +477,7 @@ static void increaseBrightness();
 static void decreaseBrightness();
 static void displayBrightness();
 
+static void disectVisMode();
 static void triggerSaveVis();
 
 static void condPLEDaBLvl(bool sLED, bool sLvl);
@@ -551,8 +559,8 @@ void main_boot2()
     remledStop.begin(STOPOUT_PIN);    // "Stop" LED + Switch output
 
     // Init Power LED and Level Meter
-    usePwrLED = (atoi(settings.usePwrLED) > 0);
-    useLvlMtr = (atoi(settings.useLvlMtr) > 0);
+    usePwrLED = evalBool(settings.usePwrLED);
+    useLvlMtr = evalBool(settings.useLvlMtr);
 
     // Power LED
     pwrled.begin(PWRLED_PIN, usePwrLED);
@@ -561,10 +569,10 @@ void main_boot2()
 
     // Power LED on Fake Power (or Real Power)
     if(usePwrLED || useLvlMtr) {
-        if(!(pwrLEDonFP = (atoi(settings.pwrLEDonFP) > 0))) {
+        if(!(pwrLEDonFP = evalBool(settings.pwrLEDonFP))) {
             pwrled.setState(true);
         }
-        if(!(LvLMtronFP = (atoi(settings.LvLMtronFP) > 0))) {
+        if(!(LvLMtronFP = evalBool(settings.LvLMtronFP))) {
             bLvLMeter.setState(true);
         }
     } else {
@@ -580,7 +588,7 @@ void main_boot2()
 
     #ifdef HAVE_PM
     // Init power monitor (if to be used)
-    usePwrMon = (atoi(settings.usePwrMon) > 0);
+    usePwrMon = evalBool(settings.usePwrMon);
     batType = atoi(settings.batType);
     batCap = atoi(settings.batCap);
     if(batType < BAT_PROF_01 || batType > BAT_PROF_MAX) {
@@ -677,41 +685,47 @@ void main_setup()
     
     Serial.println("DTM Remote Control version " REMOTE_VERSION " " REMOTE_VERSION_EXTRA);
 
-    if(loadVis()) {                 // load visMode
-        autoThrottle = !!(visMode & 0x04);
-        doCoast = !!(visMode & 0x08);
-        movieMode = !!(visMode & 0x01);
-        displayGPSMode = !!(visMode & 0x02);
-        powerMaster = !!(visMode & 0x80);
+    loadMovieMode();
+    loadDisplayGPSMode();
+    
+    // Eval from main settings
+    autoThrottle = evalBool(settings.autoThrottle);
+    doCoast = evalBool(settings.coast);
+    powerMaster = evalBool(settings.pwrMst);
+    // Overrule by terSettings if available
+    // (In transition, might also overrule movieMode and GPSmode)
+    if(loadVis()) {
+        disectVisMode();
+    } else {
+        updateVisMode();
     }
-    updateConfigPortalVisValues();  // Update CP to current value(s)
+    updateConfigPortalVisValues();
+    updateConfigPortalVis2Values();
 
-    updateConfigPortalBriValues();
-
-    ooTT = (atoi(settings.ooTT) > 0);
-    ooresBri = !(atoi(settings.oorst) > 0);
+    ooTT = evalBool(settings.ooTT);
+    ooresBri = !evalBool(settings.oorst);
 
     for(int i = 0; i < BTTFN_REM_MAX_COMMAND+1; i++) {
         bttfnSeqCnt[i] = 1;
     }
 
-    buttonPackMomentary[0] = !(atoi(settings.bPb0Maint) > 0);
-    buttonPackMomentary[1] = !(atoi(settings.bPb1Maint) > 0);
-    buttonPackMomentary[2] = !(atoi(settings.bPb2Maint) > 0);
-    buttonPackMomentary[3] = !(atoi(settings.bPb3Maint) > 0);
-    buttonPackMomentary[4] = !(atoi(settings.bPb4Maint) > 0);
-    buttonPackMomentary[5] = !(atoi(settings.bPb5Maint) > 0);
-    buttonPackMomentary[6] = !(atoi(settings.bPb6Maint) > 0);
-    buttonPackMomentary[7] = !(atoi(settings.bPb7Maint) > 0);
+    buttonPackMomentary[0] = !evalBool(settings.bPb0Maint);
+    buttonPackMomentary[1] = !evalBool(settings.bPb1Maint);
+    buttonPackMomentary[2] = !evalBool(settings.bPb2Maint);
+    buttonPackMomentary[3] = !evalBool(settings.bPb3Maint);
+    buttonPackMomentary[4] = !evalBool(settings.bPb4Maint);
+    buttonPackMomentary[5] = !evalBool(settings.bPb5Maint);
+    buttonPackMomentary[6] = !evalBool(settings.bPb6Maint);
+    buttonPackMomentary[7] = !evalBool(settings.bPb7Maint);
 
-    buttonPackMtOnOnly[0] = (atoi(settings.bPb0MtO) > 0);
-    buttonPackMtOnOnly[1] = (atoi(settings.bPb1MtO) > 0);
-    buttonPackMtOnOnly[2] = (atoi(settings.bPb2MtO) > 0);
-    buttonPackMtOnOnly[3] = (atoi(settings.bPb3MtO) > 0);
-    buttonPackMtOnOnly[4] = (atoi(settings.bPb4MtO) > 0);
-    buttonPackMtOnOnly[5] = (atoi(settings.bPb5MtO) > 0);
-    buttonPackMtOnOnly[6] = (atoi(settings.bPb6MtO) > 0);
-    buttonPackMtOnOnly[7] = (atoi(settings.bPb7MtO) > 0);
+    buttonPackMtOnOnly[0] = evalBool(settings.bPb0MtO);
+    buttonPackMtOnOnly[1] = evalBool(settings.bPb1MtO);
+    buttonPackMtOnOnly[2] = evalBool(settings.bPb2MtO);
+    buttonPackMtOnOnly[3] = evalBool(settings.bPb3MtO);
+    buttonPackMtOnOnly[4] = evalBool(settings.bPb4MtO);
+    buttonPackMtOnOnly[5] = evalBool(settings.bPb5MtO);
+    buttonPackMtOnOnly[6] = evalBool(settings.bPb6MtO);
+    buttonPackMtOnOnly[7] = evalBool(settings.bPb7MtO);
 
     #ifdef REMOTE_HAVEMQTT
     for(int i = 0; i < PACK_SIZE; i++) {
@@ -744,7 +758,7 @@ void main_setup()
     // Init music player (don't check for SD here)
     switchMusicFolder(musFolderNum, true);
 
-    playClicks = (atoi(settings.playClick) > 0);
+    playClicks = evalBool(settings.playClick);
 
     havePOFFsnd = check_file_SD(powerOffSnd);
     haveBOFFsnd = check_file_SD(brakeOffSnd);
@@ -755,7 +769,7 @@ void main_setup()
         useRotEnc = true;
         loadCalib();
     } else {
-        Serial.println("Rotary encoder/ADC throttle not found");
+        Serial.println("ADC throttle not found");
     }
 
     // Check for RotEnc for volume on secondary i2c addresses
@@ -804,7 +818,7 @@ void main_setup()
     buttonB.attachLongPressStop(buttonBKeyPressed);
 
     #ifdef ALLOW_DIS_UB
-    if(!atoi(settings.disBPack)) {
+    if(!evalBool(settings.disBPack)) {
     #endif
         if((useBPack = butPack.begin())) {
             butPack.setScanInterval(50);
@@ -850,6 +864,13 @@ void main_setup()
         remdisplay.setText("ISP");
         remdisplay.show();
         delay(1000);
+        remdisplay.clearBuf();
+        remdisplay.show();
+    } else if(showUpdAvail && updateAvailable()) {
+        remdisplay.on();
+        remdisplay.setText("UPD");
+        remdisplay.show();
+        delay(500);
         remdisplay.clearBuf();
         remdisplay.show();
     }
@@ -1024,9 +1045,9 @@ void main_loop()
                     // Do NOT play sound
                 }
 
-                if(powerMaster) {
-                    bttfn_remote_send_combined(powerState, brakeState, currSpeed);
-                }
+                //if(powerMaster) {
+                //    bttfn_remote_send_combined(powerState, brakeState, currSpeed);
+                //}
 
                 remdisplay.blink(false);
                 remdisplay.on();
@@ -1269,8 +1290,8 @@ void main_loop()
                             play_bad();
                         }
                     } else if(isbuttonBKeyLongPressed) {
+                        mp_makeShuffle(!mpShuffle);
                         if(haveMusic) {
-                            mp_makeShuffle(!mpShuffle);
                             play_file(mpShuffle ? "/shufon.mp3" : "/shufoff.mp3", PA_ALLOWSD, 1.0f);
                         } else {
                             play_bad();
@@ -1952,7 +1973,7 @@ void main_loop()
 
             networkAlarm = false;
 
-            if(atoi(settings.playALsnd) > 0) {
+            if(evalBool(settings.playALsnd) > 0) {
                 play_file("/alarm.mp3", PA_INTRMUS|PA_ALLOWSD|PA_DYNVOL, 1.0f);
             }
         
@@ -1982,6 +2003,7 @@ void main_loop()
         if(oldVol != curSoftVol) {
             volchanged = true;
             volchgnow = millis();
+            storeCurVolume();
             if(!FPBUnitIsOn && !TTrunning) {
                 play_file("/volchg.mp3", PA_INTRMUS|PA_ALLOWSD, 1.0f);
             }
@@ -2041,6 +2063,7 @@ static void chgVolume(int d)
 
     volchanged = true;
     volchgnow = millis();
+    storeCurVolume();
 }
 
 void increaseVolume()
@@ -2073,7 +2096,7 @@ static void changeBrightness(int d)
     remdisplay.setBrightness(b);
     brichanged = true;
     brichgnow = millis();
-    updateConfigPortalBriValues();
+    storeBrightness();
 }
 
 static void increaseBrightness()
@@ -2095,20 +2118,33 @@ static void displayBrightness()
     remdisplay.on();
 }
 
+static void disectVisMode()
+{
+    autoThrottle   = !!(visMode & (1<<VISB_AT));
+    doCoast        = !!(visMode & (1<<VISB_COAST));
+    powerMaster    = !!(visMode & (1<<VISB_PWRM));
+}
+
+void disectOldVisMode()
+{
+    movieMode      = !!(visMode & (1<<VISB_MOV_MD));
+    displayGPSMode = !!(visMode & (1<<VISB_DGPS));
+    disectVisMode();
+}
+
 void updateVisMode()
 {
-    visMode &= ~0x8f;
-    if(movieMode)      visMode |= 0x01;
-    if(displayGPSMode) visMode |= 0x02;
-    if(autoThrottle)   visMode |= 0x04;
-    if(doCoast)        visMode |= 0x08;
-    if(powerMaster)    visMode |= 0x80;
+    visMode = 0;
+    if(autoThrottle)   visMode |= (1<<VISB_AT);
+    if(doCoast)        visMode |= (1<<VISB_COAST);
+    if(powerMaster)    visMode |= (1<<VISB_PWRM);
 }
 
 static void triggerSaveVis()
 {
     vischanged = true;
     vischgnow = millis();
+    storeVis();
     updateConfigPortalVisValues();
 }
 
@@ -2134,11 +2170,20 @@ static void toggleCoast()
     setCoast(!doCoast);
 }
 
+static void togglePwrMst()
+{
+    powerMaster = !powerMaster;
+    updateVisMode();
+    triggerSaveVis();
+
+    bttfn_remote_send_combined(powerState, brakeState, currSpeed);
+}
+
 void setMovieMode(bool isOn)
 {
     movieMode = isOn;
-    updateVisMode();
-    triggerSaveVis();
+    saveMovieMode();
+    updateConfigPortalVis2Values();
 }
 static void toggleMovieMode()
 {
@@ -2148,8 +2193,8 @@ static void toggleMovieMode()
 void setDisplayGPS(bool isOn)
 {
     displayGPSMode = isOn;
-    updateVisMode();
-    triggerSaveVis();
+    saveDisplayGPSMode();
+    updateConfigPortalVis2Values();
 
     if(!FPBUnitIsOn && displayGPSMode) {
         currSpeedOldGPS = -2;   // force GPS speed display update
@@ -2158,14 +2203,6 @@ void setDisplayGPS(bool isOn)
 static void toggleDisplayGPS()
 {
     setDisplayGPS(!displayGPSMode);
-}
-
-static void togglePwrMst()
-{
-    powerMaster = !powerMaster;
-    updateVisMode();
-    triggerSaveVis();
-    bttfn_remote_send_combined(powerState, brakeState, currSpeed);
 }
 
 static void condPLEDaBLvl(bool sLED, bool sLvl)
@@ -2448,6 +2485,7 @@ static void execute_remote_command()
                 curSoftVol = command;
                 volchanged = true;
                 volchgnow = millis();
+                storeCurVolume();
                 #ifdef HAVE_VOL_ROTENC
                 re_vol_reset();
                 #endif
@@ -2461,7 +2499,7 @@ static void execute_remote_command()
             remdisplay.setBrightness(command);
             brichanged = true;
             brichgnow = millis();
-            updateConfigPortalBriValues();
+            storeBrightness();
 
         } else if(command >= 501 && command <= 519) {
 
@@ -2483,9 +2521,7 @@ static void execute_remote_command()
             switch(command) {
             case 222:                                 // 7222/7555 Disable/enable shuffle
             case 555:
-                if(haveMusic) {
-                    mp_makeShuffle((command == 555));
-                }
+                mp_makeShuffle((command == 555));
                 break;
             case 888:                                 // 7888 go to song #0
                 if(haveMusic) {
@@ -2555,6 +2591,11 @@ static void execute_remote_command()
     } else {
       
         switch(command) {
+        case 53281:                               // 7053281: Toggle "update available" signal at boot
+            showUpdAvail = !showUpdAvail;
+            saveUpdAvail();
+            updateConfigPortalUpdValues();
+            break;
         case 64738:                               // 7064738: reboot
             if(!injected) {
                 bttfn_remote_unregister();
@@ -3126,12 +3167,12 @@ static void handle_tcd_notification(uint8_t *buf)
             bttfnSessionID = seqCnt;
             seqCnt = GET32(buf, 6);
             if(seqCnt > bttfnTCDDataSeqCnt || seqCnt == 1) {
-                #ifdef REMOTE_DBG
+                #ifdef REMOTE_DBG_NET
                 Serial.println("Valid NOT_DATA packet received");
                 #endif
                 bttfn_eval_response(buf, false);
             } else {
-                #ifdef REMOTE_DBG
+                #ifdef REMOTE_DBG_NET
                 Serial.printf("Out-of-sequence NOT_DATA packet received %d %d\n", seqCnt, bttfnTCDDataSeqCnt);
                 #endif
             }
@@ -3156,11 +3197,11 @@ static void handle_tcd_notification(uint8_t *buf)
             default:
                 tcdIsInP0 = 0;
             }
-            #ifdef REMOTE_DBG
+            #ifdef REMOTE_DBG_NET
             Serial.printf("TCD sent NOT_SPD: %d src %d (IsP0:%d)\n", tcdCurrSpeed, t, tcdIsInP0);
             #endif
         } else {
-            #ifdef REMOTE_DBG
+            #ifdef REMOTE_DBG_NET
             Serial.printf("Out-of-sequence packet received from TCD %d %d\n", seqCnt, bttfnTCDSeqCnt);
             #endif
         }
@@ -3228,11 +3269,11 @@ static void handle_tcd_notification(uint8_t *buf)
             } else {
                 tcdIsInP0 = 0;
             }
-            #ifdef REMOTE_DBG
+            #ifdef REMOTE_DBG_NET
             Serial.printf("TCD sent REM_SPD: %d %d\n", tcdIsInP0, tcdSpeedP0);
             #endif
         } else {
-            #ifdef REMOTE_DBG
+            #ifdef REMOTE_DBG_NET
             Serial.printf("Out-of-sequence packet received from TCD %d %d\n", seqCnt, bttfnTCDSeqCnt);
             #endif
         }
@@ -3335,11 +3376,11 @@ static void BTTFNCheckPacket()
             if(!haveTCDIP) {
                 bttfnTcdIP = remUDP->remoteIP();
                 haveTCDIP = true;
-                #ifdef REMOTE_DBG
+                #ifdef REMOTE_DBG_NET
                 Serial.printf("Discovered TCD IP %d.%d.%d.%d\n", bttfnTcdIP[0], bttfnTcdIP[1], bttfnTcdIP[2], bttfnTcdIP[3]);
                 #endif
             } else {
-                #ifdef REMOTE_DBG
+                #ifdef REMOTE_DBG_NET
                 Serial.println("Internal error - received unexpected DISCOVER response");
                 #endif
             }
@@ -3526,9 +3567,9 @@ static void bttfn_remote_keepalive()
 
 void bttfn_remote_unregister()
 {
-    if(!bttfn_send_command(BTTFN_REMCMD_BYE, 0, 0)) {
-        triggerCompleteUpdate = true;
-    }
+    bttfn_send_command(BTTFN_REMCMD_BYE, 0, 0);
+    // No need for "triggerCompleteUpdate" logic,
+    // BYE means we reboot.
 }
 
 static void bttfn_remote_send_combined(bool powerstate, bool brakestate, uint8_t speed)
@@ -3599,7 +3640,9 @@ void bttfn_loop()
             if(tcdHostNameHash) {
                 haveTCDIP = false;
             }
-            #ifdef REMOTE_DBG
+            // Avoid immediate return to stand-alone in main_loop()
+            lastBTTFNpacket = now;
+            #ifdef REMOTE_DBG_NET
             Serial.println("NOT_DATA timeout, returning to polling");
             #endif
         }

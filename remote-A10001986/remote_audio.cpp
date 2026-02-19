@@ -112,7 +112,7 @@ static bool     appendFile = false;
 
 static char     keySnd[] = "/key3.mp3";   // not const
 static char     keylSnd[] = "/key3l.mp3"; // not const
-static bool     haveKeySnd[10], haveKeyLSnd[10];
+static uint32_t haveKeySnd = 0, haveKeyLSnd = 0;
 
 static const char *tcdrdone = "/TCD_DONE.TXT";   // leave "TCD", SD is interchangable this way
 unsigned long   renNow1;
@@ -159,16 +159,16 @@ void audio_setup()
     loadMusFoldNum();
     updateConfigPortalMFValues();
     
-    mpShuffle = (settings.shuffle[0] != '0');
+    loadShuffle();
 
     // MusicPlayer init
     // done in main_setup()
 
     // Check for key(l)X sounds to avoid unsuccessful file-lookups every time
-    for(int i = 1; i < 10; i++) {
+    for(int i = 1, bm = 1 << 8; i < 10; i++, bm <<= 1) {
         keySnd[4] = keylSnd[4] = '0' + i;
-        haveKeySnd[i] = check_file_SD(keySnd);
-        haveKeyLSnd[i] = check_file_SD(keylSnd);
+        if(check_file_SD(keySnd))  haveKeySnd  |= bm;
+        if(check_file_SD(keylSnd)) haveKeyLSnd |= bm;
     }
 
     audioInitDone = true;
@@ -393,10 +393,10 @@ void play_key(int k, bool l, bool stopOnly)
     uint32_t pa_key = (1 << (7+k));
     
     if(l) {
-      if(!haveKeyLSnd[k]) return;
-      pa_key |= 0x80;
+        if(!(haveKeyLSnd & pa_key)) return;
+        pa_key |= 0x80;
     } else {
-      if(!haveKeySnd[k]) return;
+        if(!(haveKeySnd & pa_key)) return;
     }
 
     if(pa_key == (playflags & PA_KMASK)) {
@@ -408,13 +408,8 @@ void play_key(int k, bool l, bool stopOnly)
     if(stopOnly)
         return;
 
-    if(!l) {
-        fn = keySnd;
-        keySnd[4] = '0' + k;
-    } else {
-        fn = keylSnd;
-        keylSnd[4] = '0' + k;
-    }
+    fn = l ? keylSnd : keySnd;
+    fn[4] = '0' + k;
     play_file(fn, pa_key|PA_INTRMUS|PA_ALLOWSD|PA_DYNVOL);
 }
 
@@ -594,6 +589,7 @@ void mp_makeShuffle(bool enable)
     int numMsx = maxMusic + 1;
 
     mpShuffle = enable;
+    saveShuffle();
 
     if(!haveMusic) return;
     

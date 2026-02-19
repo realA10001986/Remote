@@ -63,17 +63,30 @@
 #include <SPI.h>
 #include <FS.h>
 #ifdef USE_SPIFFS
+#define MYNVS SPIFFS
 #include <SPIFFS.h>
 #else
-#define SPIFFS LittleFS
+#define MYNVS LittleFS
 #include <LittleFS.h>
 #endif
-
 #include <Update.h>
 
 #include "remote_main.h"
 #include "remote_settings.h"
 #include "remote_audio.h"
+#include "remote_wifi.h"
+
+// If defined, old settings files will be used
+// and converted if no new settings file is found.
+// Keep this defined for a few versions/months.
+#define SETTINGS_TRANSITION
+// Stage 2: Assume new settings are present, but
+// still delete obsolete files.
+//#define SETTINGS_TRANSITION_2
+
+#ifdef SETTINGS_TRANSITION
+#undef SETTINGS_TRANSITION_2
+#endif
 
 // Size of main config JSON
 // Needs to be adapted when config grows
@@ -92,24 +105,78 @@
 #define AC_FMTV 2
 #define AC_TS   815107
 #define AC_OHSZ (14 + ((NUM_AUDIOFILES+1)*(32+4)))
+
 static const char *CONFN  = "/REMA.bin";
 static const char *CONFND = "/REMA.old";
 static const char *CONID  = "REMA";
+const char        rspv[] = SND_REQ_VERSION;
 static uint32_t   soa = AC_TS;
 static bool       ic = false;
 static uint8_t*   f(uint8_t *d, uint32_t m, int y) { return d; }
 static char       *uploadFileNames[MAX_SIM_UPLOADS] = { NULL };
 static char       *uploadRealFileNames[MAX_SIM_UPLOADS] = { NULL };
 
-static const char *idName     = "/remid.json";       // Remote ID (flash)
+// Secondary settings
+// Do not change or insert new values, this
+// struct is saved as such. Append new stuff.
+static struct [[gnu::packed]] {
+    int32_t up             = 5;
+    int32_t dn             = -5;
+    int32_t zero           = 0;
+    uint8_t brightness     = DEF_BRI;
+    uint8_t curSoftVol     = DEFAULT_VOLUME;
+    uint8_t movieMode      = DEF_MOV_MD;
+    uint8_t displayGPSMode = DEF_DISP_GPS;
+    uint8_t showUpdAvail   = 1;
+} secSettings;
+
+// Tertiary settings (SD only)
+// Do not change or insert new values, this
+// struct is saved as such. Append new stuff.
+static struct [[gnu::packed]] {
+    uint16_t visMode      = 0;
+    uint8_t  musFolderNum = 0;
+    uint8_t  mpShuffle    = 0;
+} terSettings;
+
+static int      secSetValidBytes = 0;
+static uint32_t secSettingsHash  = 0;
+static bool     haveSecSettings  = false;
+static int      terSetValidBytes = 0;
+static uint32_t terSettingsHash  = 0;
+static bool     haveTerSettings  = false;
+
+static uint32_t mainConfigHash = 0;
+static uint32_t ipHash = 0;
+#ifdef REMOTE_HAVEMQTT
+static uint32_t mqttConfigHash = 0;
+#endif
+
 static const char *cfgName    = "/remconfig.json";   // Main config (flash)
-static const char *ipCfgName  = "/remipcfg.json";    // IP config (flash)
+#ifdef REMOTE_HAVEMQTT
 static const char *haCfgName  = "/remhacfg.json";    // HA/MQTT config (flash/SD)
-static const char *caCfgName  = "/remcacfg.json";    // Calibration config (flash/SD)
-static const char *briCfgName = "/rembricfg.json";   // Brightness config (flash/SD)
-static const char *visCfgName = "/remviscfg.json";   // Visual config (SD only)
+#endif
+static const char *ipCfgName  = "/remipcfg";         // IP config (flash)
+static const char *idName     = "/remidid";          // Remote ID (flash)
+static const char *secCfgName = "/rem2cfg";          // Secondary settings (flash/SD)
+static const char *terCfgName = "/rem3cfg";          // Tertiary settings (SD)
+
+#ifdef SETTINGS_TRANSITION
+static const char *ipCfgNameO = "/remipcfg.json";    // IP config (flash)
+static const char *idNameO    = "/remid.json";       // Remote ID (flash)
 static const char *volCfgName = "/remvolcfg.json";   // Volume config (flash/SD)
+static const char *briCfgName = "/rembricfg.json";   // Brightness config (flash/SD)
+static const char *caCfgName  = "/remcacfg.json";    // Calibration config (flash/SD)
+static const char *visCfgName = "/remviscfg.json";   // Visual config (SD only)
 static const char *musCfgName = "/remmcfg.json";     // Music config (SD only)
+#endif
+#ifdef SETTINGS_TRANSITION_2
+static const char *obsFiles[] = {
+    "/remipcfg.json", "/remid.json",     "/remvolcfg.json", "/rembricfg.json",
+    "/remcacfg.json", "/remviscfg.json", "/remmcfg.json",   "/_installing.mp3",
+    NULL
+};
+#endif
 
 static const char fwfn[]      = "/remfw.bin";
 static const char fwfnold[]   = "/remfw.old";
@@ -120,33 +187,28 @@ static const char *failFileWrite = "Failed to open file for writing";
 static const char *badConfig = "Settings bad/missing/incomplete; writing new file";
 #endif
 
-/* If SPIFFS/LittleFS is mounted */
+// If LittleFS/SPIFFS is mounted
 bool haveFS = false;
 
-/* If a SD card is found */
+// If a SD card is found
 bool haveSD = false;
 
-/* Save secondary settings on SD? */
+// Save secondary settings on SD?
 static bool configOnSD = false;
 
-/* Paranoia: No writes Flash-FS  */
+// Paranoia: No writes Flash-FS
 bool FlashROMode = false;
 
-/* If SD contains default audio files */
+// If SD contains default audio files
 static bool allowCPA = false;
 
-/* If current audio data is installed */
+// If current audio data is installed
 bool haveAudioFiles = false;
 
-/* Music Folder Number */
+// Music Folder Number
 uint8_t musFolderNum = 0;
 
-/* Cache */
-static uint16_t  prevSavedVIS = 0;
-static uint8_t   prevSavedBri = 12;
-static uint8_t   prevSavedVol = 255;
 static uint8_t*  (*r)(uint8_t *, uint32_t, int);
-
 static bool read_settings(File configFile, int cfgReadCount);
 #ifdef REMOTE_HAVEMQTT
 static void read_mqtt_settings();
@@ -159,31 +221,41 @@ static bool checkValidNumParm(char *text, int lowerLim, int upperLim, int setDef
 static bool checkValidNumParmF(char *text, float lowerLim, float upperLim, float setDefault);
 static bool handleMQTTButton(const char *json, char *text, uint8_t psize);
 
+static void loadUpdAvail();
+
+static bool     loadId();
+static uint32_t createId();
+static void     saveId();
+
 static bool copy_audio_files(bool& delIDfile);
 static void cfc(File& sfile, bool doCopy, int& haveErr, int& haveWriteErr);
 
 static bool audio_files_present(int& alienVER);
 
 static bool formatFlashFS(bool userSignal);
-static void rewriteSecondarySettings();
+static void reInstallFlashFS();
 
-static bool CopyIPParm(const char *json, char *text, uint8_t psize);
+static DeserializationError readJSONCfgFile(JsonDocument& json, File& configFile, uint32_t *newHash = NULL);
+static bool writeJSONCfgFile(const JsonDocument& json, const char *fn, bool useSD, uint32_t oldHash = 0, uint32_t *newHash = NULL);
 
-static bool loadId();
-static uint32_t createId();
-static void saveId();
-
-static DeserializationError readJSONCfgFile(JsonDocument& json, File& configFile, const char *funcName);
-static bool writeJSONCfgFile(const JsonDocument& json, const char *fn, bool useSD, const char *funcName);
 static bool writeFileToSD(const char *fn, uint8_t *buf, int len);
 static bool writeFileToFS(const char *fn, uint8_t *buf, int len);
+
+static bool loadConfigFile(const char *fn, uint8_t *buf, int len, int& validBytes, int forcefs = 0);
+static bool saveConfigFile(const char *fn, uint8_t *buf, int len, int forcefs = 0);
+static uint32_t calcHash(uint8_t *buf, int len);
+static bool saveSecSettings(bool useCache);
+static bool saveTerSettings(bool useCache);
+#ifdef SETTINGS_TRANSITION
+static void removeOldFiles(const char *oldfn);
+#endif
 
 static void firmware_update();
 
 /*
  * settings_setup()
  * 
- * Mount SPIFFS/LittleFS and SD (if available).
+ * Mount MYNVS/LittleFS and SD (if available).
  * Read configuration from JSON config file
  * If config file not found, create one with default settings
  *
@@ -194,6 +266,7 @@ void settings_setup()
     const char *funcName = "settings_setup";
     #endif
     bool writedefault = false;
+    bool freshFS = false;
     bool SDres = false;
     int alienVER = -1;
     int cfgReadCount = 0;
@@ -202,7 +275,7 @@ void settings_setup()
     Serial.printf("%s: Mounting flash FS... ", funcName);
     #endif
 
-    if(SPIFFS.begin()) {
+    if(MYNVS.begin()) {
   
         haveFS = true;
   
@@ -213,21 +286,21 @@ void settings_setup()
         #endif
 
         haveFS = formatFlashFS(true);
+        freshFS = true;
   
     }
 
     if(haveFS) {
 
-        // Remove sound files that no longer should exist
-        SPIFFS.remove("/throttleup.wav");
-  
         #ifdef REMOTE_DBG
-        Serial.println("ok, loading settings");
-        Serial.printf("FlashFS: %d total, %d used\n", SPIFFS.totalBytes(), SPIFFS.usedBytes());
+        Serial.printf("ok.\nFlashFS: %d total, %d used\n", MYNVS.totalBytes(), MYNVS.usedBytes());
         #endif
+
+        // Remove sound files that no longer should exist
+        MYNVS.remove("/throttleup.wav");
     
-        if(SPIFFS.exists(cfgName)) {
-            File configFile = SPIFFS.open(cfgName, "r");
+        if(MYNVS.exists(cfgName)) {
+            File configFile = MYNVS.open(cfgName, "r");
             if(configFile) {
                 writedefault = read_settings(configFile, cfgReadCount);
                 cfgReadCount++;
@@ -283,10 +356,6 @@ void settings_setup()
 
         haveSD = ((cardType != CARD_NONE) && (cardType != CARD_UNKNOWN));
 
-    } else {
-      
-        Serial.println("no SD card found");
-        
     }
 
     if(haveSD) {
@@ -294,7 +363,7 @@ void settings_setup()
         firmware_update();
         
         if(SD.exists("/REM_FLASH_RO") || !haveFS) {
-            bool writedefault2 = false;
+            bool writedefault2 = true;
             FlashROMode = true;
             Serial.println("Flash-RO mode: All settings/states stored on SD. Reloading settings.");
             if(SD.exists(cfgName)) {
@@ -302,31 +371,32 @@ void settings_setup()
                 if(configFile) {
                     writedefault2 = read_settings(configFile, cfgReadCount);
                     configFile.close();
-                } else {
-                    writedefault2 = true;
                 }
-            } else {
-                writedefault2 = true;
             }
             if(writedefault2) {
                 #ifdef REMOTE_DBG
                 Serial.printf("%s: %s\n", funcName, badConfig);
                 #endif
+                mainConfigHash = 0;
                 write_settings();
             }
         }
+
+    } else {      
+        Serial.println("No SD card found");
     }
 
     // Check if (current) audio data is installed
     haveAudioFiles = audio_files_present(alienVER);
 
-    // Re-format flash FS if either alien VER found, or no VER exists
-    // and remaining storage is not enough for our audio files.
-    // (Reason: LittleFS crashes when flash FS is full.)
+    // Re-format flash FS if either alien VER found, or
+    // neither VER nor our config file exist.
+    // (Note: LittleFS crashes when flash FS is full.)
     if(!haveAudioFiles && haveFS && !FlashROMode) {
-        if((alienVER > 0) || (alienVER < 0 && (SPIFFS.totalBytes() - SPIFFS.usedBytes() < soa + 16384))) {
+        if((alienVER > 0) || 
+           (alienVER < 0 && !freshFS && !cfgReadCount)) {
             #ifdef REMOTE_DBG
-            Serial.printf("Reformatting. Alien VER: %d, space %d", alienVER, SPIFFS.totalBytes() - SPIFFS.usedBytes());
+            Serial.printf("Reformatting. Alien VER: %d, used space %d", alienVER, MYNVS.usedBytes());
             #endif
             writedefault = true;
             formatFlashFS(true);
@@ -339,8 +409,18 @@ void settings_setup()
         #ifdef REMOTE_DBG
         Serial.printf("%s: %s\n", funcName, badConfig);
         #endif
+        mainConfigHash = 0;
         write_settings();
     }
+
+    #ifdef SETTINGS_TRANSITION_2
+    if(haveSD) {
+        for(int i = 0; ; i++) {
+            if(!obsFiles[i]) break;
+            SD.remove(obsFiles[i]);
+        }
+    }
+    #endif
 
     // Load/create "Remote ID"
     if(!loadId()) {
@@ -354,10 +434,27 @@ void settings_setup()
     // Determine if secondary settings are to be stored on SD
     configOnSD = (haveSD && ((settings.CfgOnSD[0] != '0') || FlashROMode));
 
+    // Load secondary config file
+    if(loadConfigFile(secCfgName, (uint8_t *)&secSettings, sizeof(secSettings), secSetValidBytes)) {
+        secSettingsHash = calcHash((uint8_t *)&secSettings, sizeof(secSettings));
+        haveSecSettings = true;
+    }
+
+    // Load tertiary config file (SD only)
+    if(haveSD) {
+        if(loadConfigFile(terCfgName, (uint8_t *)&terSettings, sizeof(terSettings), terSetValidBytes, 1)) {
+            terSettingsHash = calcHash((uint8_t *)&terSettings, sizeof(terSettings));
+            haveTerSettings = true;
+        }
+    }
+
     // Load HA/MQTT settings
     #ifdef REMOTE_HAVEMQTT
     read_mqtt_settings();
     #endif
+
+    loadUpdAvail();
+    updateConfigPortalUpdValues();
 
     // Check if SD contains the default sound files
     if((r = m) && haveSD && (haveFS || FlashROMode)) {
@@ -372,7 +469,7 @@ void settings_setup()
 void unmount_fs()
 {
     if(haveFS) {
-        SPIFFS.end();
+        MYNVS.end();
         #ifdef REMOTE_DBG
         Serial.println("Unmounted Flash FS");
         #endif
@@ -394,7 +491,7 @@ static bool read_settings(File configFile, int cfgReadCount)
     size_t jsonSize = 0;
     DECLARE_D_JSON(JSON_SIZE,json);
     
-    DeserializationError error = readJSONCfgFile(json, configFile, funcName);
+    DeserializationError error = readJSONCfgFile(json, configFile, &mainConfigHash);
 
     #if ARDUINOJSON_VERSION_MAJOR < 7
     jsonSize = json.memoryUsage();
@@ -450,29 +547,21 @@ static bool read_settings(File configFile, int cfgReadCount)
 
         // Settings
 
-        // movieMode, dTDSpd, autoThrottle, coast are overruled by loadVis later (if present)
+        // autoThrottle, doCoast, powerMaster overruled by terSettings (if available)
+
         wd |= CopyCheckValidNumParm(json["at"], settings.autoThrottle, sizeof(settings.autoThrottle), 0, 1, DEF_AT);
         wd |= CopyCheckValidNumParm(json["coast"], settings.coast, sizeof(settings.coast), 0, 1, DEF_COAST);
-        wd |= CopyCheckValidNumParm(json["movieMode"], settings.movieMode, sizeof(settings.movieMode), 0, 1, DEF_MOV_MD);
         wd |= CopyCheckValidNumParm(json["playClick"], settings.playClick, sizeof(settings.playClick), 0, 1, DEF_PLAY_CLK);
         wd |= CopyCheckValidNumParm(json["playALsnd"], settings.playALsnd, sizeof(settings.playALsnd), 0, 1, DEF_PLAY_ALM_SND);
-        wd |= CopyCheckValidNumParm(json["dTCDSpd"], settings.dgps, sizeof(settings.dgps), 0, 1, DEF_DISP_GPS);
-
-        autoThrottle = (settings.autoThrottle[0] == '1');
-        doCoast = (settings.coast[0] == '1');
-        movieMode = (settings.movieMode[0] == '1');
-        displayGPSMode = (settings.dgps[0] == '1');
-
-        wd |= CopyCheckValidNumParm(json["shuffle"], settings.shuffle, sizeof(settings.shuffle), 0, 1, DEF_SHUFFLE);
-
+        
         wd |= CopyTextParm(json["tcdIP"], settings.tcdIP, sizeof(settings.tcdIP));
-        // pwM are overruled by loadVis later (if present)
         wd |= CopyCheckValidNumParm(json["pwM"], settings.pwrMst, sizeof(settings.pwrMst), 0, 1, DEF_PWR_MST);
-        wd |= CopyCheckValidNumParm(json["oorst"], settings.oorst, sizeof(settings.oorst), 0, 1, DEF_OORST);
-        wd |= CopyCheckValidNumParm(json["oott"], settings.ooTT, sizeof(settings.ooTT), 0, 1, DEF_OO_TT);
-
+        
         wd |= CopyCheckValidNumParm(json["CfgOnSD"], settings.CfgOnSD, sizeof(settings.CfgOnSD), 0, 1, DEF_CFG_ON_SD);
         //wd |= CopyCheckValidNumParm(json["sdFreq"], settings.sdFreq, sizeof(settings.sdFreq), 0, 1, DEF_SD_FREQ);
+
+        wd |= CopyCheckValidNumParm(json["oorst"], settings.oorst, sizeof(settings.oorst), 0, 1, DEF_OORST);
+        wd |= CopyCheckValidNumParm(json["oott"], settings.ooTT, sizeof(settings.ooTT), 0, 1, DEF_OO_TT);
 
         #ifdef ALLOW_DIS_UB
         wd |= CopyCheckValidNumParm(json["disBP"], settings.disBPack, sizeof(settings.disBPack), 0, 1, DEF_DIS_BPACK);
@@ -507,9 +596,6 @@ static bool read_settings(File configFile, int cfgReadCount)
         wd |= CopyCheckValidNumParm(json["bCa"], settings.batCap, sizeof(settings.batCap), 1000, 6000, DEF_BAT_CAP);
         #endif
   
-        // Convert separately saved flags into visMode
-        updateVisMode();
-
         // HA/MQTT Settings (transitional; now in separate file)
 
         #ifdef REMOTE_HAVEMQTT
@@ -583,27 +669,19 @@ void write_settings()
     json["wAOD"] = (const char *)settings.wifiAPOffDelay;
     json["rAOFP"] = (const char *)settings.reactAPOnFP;
 
-    sprintf(settings.autoThrottle, "%d", autoThrottle ? 1 : 0);
-    sprintf(settings.coast, "%d", doCoast ? 1 : 0);
-    sprintf(settings.movieMode, "%d", movieMode ? 1 : 0);
-    sprintf(settings.dgps, "%d", displayGPSMode ? 1 : 0);
-    
     json["at"] = (const char *)settings.autoThrottle;
     json["coast"] = (const char *)settings.coast;
-    json["movieMode"] = (const char *)settings.movieMode;
     json["playClick"] = (const char *)settings.playClick;
     json["playALsnd"] = (const char *)settings.playALsnd;
-    json["dTCDSpd"] = (const char *)settings.dgps;
-
-    json["shuffle"] = (const char *)settings.shuffle;
-
+    
     json["tcdIP"] = (const char *)settings.tcdIP;
     json["pwM"] = (const char *)settings.pwrMst;
-    json["oorst"] = (const char *)settings.oorst;
-    json["oott"] = (const char *)settings.ooTT;
-
+    
     json["CfgOnSD"] = (const char *)settings.CfgOnSD;
     //json["sdFreq"] = (const char *)settings.sdFreq;
+
+    json["oorst"] = (const char *)settings.oorst;
+    json["oott"] = (const char *)settings.ooTT;
 
     #ifdef ALLOW_DIS_UB
     json["disBP"] = (const char *)settings.disBPack;
@@ -638,12 +716,12 @@ void write_settings()
     json["bCa"] = (const char *)settings.batCap;
     #endif
   
-    writeJSONCfgFile(json, cfgName, FlashROMode, funcName);
+    writeJSONCfgFile(json, cfgName, FlashROMode, mainConfigHash, &mainConfigHash);
 }
 
 bool checkConfigExists()
 {
-    return FlashROMode ? SD.exists(cfgName) : (haveFS && SPIFFS.exists(cfgName));
+    return FlashROMode ? SD.exists(cfgName) : (haveFS && MYNVS.exists(cfgName));
 }
 
 /*
@@ -680,68 +758,75 @@ static bool CopyCheckValidNumParmF(const char *json, char *text, uint8_t psize, 
 static bool checkValidNumParm(char *text, int lowerLim, int upperLim, int setDefault)
 {
     int i, len = strlen(text);
+    bool ret = false;
 
-    if(len == 0) {
-        sprintf(text, "%d", setDefault);
-        return true;
-    }
-
-    for(i = 0; i < len; i++) {
-        if(text[i] < '0' || text[i] > '9') {
-            sprintf(text, "%d", setDefault);
-            return true;
+    if(!len) {
+        i = setDefault;
+        ret = true;
+    } else {
+        for(int j = 0; j < len; j++) {
+            if(text[j] < '0' || text[j] > '9') {
+                i = setDefault;
+                ret = true;
+                break;
+            }
         }
-    }
-
-    i = atoi(text);
-
-    if(i < lowerLim) {
-        sprintf(text, "%d", lowerLim);
-        return true;
-    }
-    if(i > upperLim) {
-        sprintf(text, "%d", upperLim);
-        return true;
+        if(!ret) {
+            i = atoi(text);   
+            if(i < lowerLim) {
+                i = lowerLim;
+                ret = true;
+            } else if(i > upperLim) {
+                i = upperLim;
+                ret = true;
+            }
+        }
     }
 
     // Re-do to get rid of formatting errors (eg "000")
     sprintf(text, "%d", i);
 
-    return false;
+    return ret;
 }
 
 static bool checkValidNumParmF(char *text, float lowerLim, float upperLim, float setDefault)
 {
     int i, len = strlen(text);
+    bool ret = false;
     float f;
 
-    if(len == 0) {
-        sprintf(text, "%.1f", setDefault);
-        return true;
-    }
-
-    for(i = 0; i < len; i++) {
-        if(text[i] != '.' && text[i] != '-' && (text[i] < '0' || text[i] > '9')) {
-            sprintf(text, "%.1f", setDefault);
-            return true;
+    if(!len) {
+        f = setDefault;
+        ret = true;
+    } else {
+        for(i = 0; i < len; i++) {
+            if(text[i] != '.' && text[i] != '-' && (text[i] < '0' || text[i] > '9')) {
+                f = setDefault;
+                ret = true;
+                break;
+            }
+        }
+        if(!ret) {
+            f = strtof(text, NULL);
+            if(f < lowerLim) {
+                f = lowerLim;
+                ret = true;
+            } else if(f > upperLim) {
+                f = upperLim;
+                ret = true;
+            }
         }
     }
-
-    f = atof(text);
-
-    if(f < lowerLim) {
-        sprintf(text, "%.1f", lowerLim);
-        return true;
-    }
-    if(f > upperLim) {
-        sprintf(text, "%.1f", upperLim);
-        return true;
-    }
-
-    // Re-do to get rid of formatting errors (eg "00.")
+    // Re-do to get rid of formatting errors (eg "0.")
     sprintf(text, "%.1f", f);
 
-    return false;
+    return ret;
+}
+
+bool evalBool(char *s)
+{
+    if(*s == '0') return false;
+    return true;
 }
 
 static bool handleMQTTButton(const char *json, char *text, uint8_t psize)
@@ -763,8 +848,8 @@ static bool openCfgFileRead(const char *fn, File& f, bool SDonly = false)
         }
     } 
     if(!haveConfigFile && !SDonly && haveFS) {
-        if(SPIFFS.exists(fn)) {
-            haveConfigFile = (f = SPIFFS.open(fn, "r"));
+        if(MYNVS.exists(fn)) {
+            haveConfigFile = (f = MYNVS.open(fn, "r"));
         }
     }
 
@@ -795,7 +880,7 @@ static void read_mqtt_settings()
 
     if(openCfgFileRead(haCfgName, configFile)) {
         DECLARE_D_JSON(JSON_SIZE_MQTT,json);
-        if(!readJSONCfgFile(json, configFile, funcName)) {
+        if(!readJSONCfgFile(json, configFile, &mqttConfigHash)) {
             wd = false;
             wd |= CopyCheckValidNumParm(json["useMQTT"], settings.useMQTT, sizeof(settings.useMQTT), 0, 1, 0);
             wd |= CopyTextParm(json["mqttServer"], settings.mqttServer, sizeof(settings.mqttServer));
@@ -829,6 +914,7 @@ static void read_mqtt_settings()
     }
 
     if(wd) {
+        mqttConfigHash = 0;
         write_mqtt_settings();
     }
 }
@@ -876,7 +962,7 @@ void write_mqtt_settings()
     json["mqttb8o"] = (const char *)settings.mqttbo[7];
     json["mqttb8f"] = (const char *)settings.mqttbf[7];
 
-    writeJSONCfgFile(json, haCfgName, configOnSD, funcName);
+    writeJSONCfgFile(json, haCfgName, configOnSD, mqttConfigHash, &mqttConfigHash);
 }
 #endif
 
@@ -884,269 +970,220 @@ void write_mqtt_settings()
  * Load/save calibration config
  */
 
-bool loadCalib()
+void loadCalib()
 {
-    const char *funcName = "loadCalib";
-    File configFile;
-    bool ret = false;
-
-    if(!haveFS && !configOnSD) {
+    if(haveSecSettings) {
         #ifdef REMOTE_DBG
-        Serial.printf("%s: %s\n", funcName, fsNoAvail);
+        Serial.println("loadCalib: extracting from secSettings\n");
         #endif
-        return false;
-    }
-
-    #ifdef REMOTE_DBG
-    Serial.printf("%s: Loading from %s\n", funcName, configOnSD ? "SD" : "flash FS");
-    #endif
-
-    if(openCfgFileRead(caCfgName, configFile)) {
-        DECLARE_S_JSON(512,json);
-        if(!readJSONCfgFile(json, configFile, funcName)) {
-            if(json["Up"] && json["Down"]) {
-                int32_t up = atoi(json["Up"]);
-                int32_t dn = atoi(json["Down"]);
-                int32_t zero = json["Zero"] ? atoi(json["Zero"]) : 0;
-                if(up && dn) {
-                    if(useRotEnc) {
-                        rotEnc.setMaxStepsUp(up);
-                        rotEnc.setMaxStepsDown(dn);
-                        if(!rotEnc.dynZeroPos()) {
-                            if(zero) {
-                                rotEnc.setZeroPos(zero);
-                            } else {
-                                rotEnc.setZeroPos((max(up,dn)-min(up,dn))/2);
+        if(useRotEnc) {
+            rotEnc.setMaxStepsUp(secSettings.up);
+            rotEnc.setMaxStepsDown(secSettings.dn);
+            if(!rotEnc.dynZeroPos()) {
+                rotEnc.setZeroPos(secSettings.zero);
+            }
+        }
+    } else {
+        #ifdef SETTINGS_TRANSITION      
+        File configFile;
+        if(!haveFS && !configOnSD) return;
+        if(openCfgFileRead(caCfgName, configFile)) {
+            DECLARE_S_JSON(512,json);
+            if(!readJSONCfgFile(json, configFile)) {
+                if(json["Up"] && json["Down"]) {
+                    int32_t up = atoi(json["Up"]);
+                    int32_t dn = atoi(json["Down"]);
+                    int32_t zero = json["Zero"] ? atoi(json["Zero"]) : 0;
+                    if(up && dn) {
+                        if(useRotEnc) {
+                            rotEnc.setMaxStepsUp(up);
+                            rotEnc.setMaxStepsDown(dn);
+                            if(!rotEnc.dynZeroPos()) {
+                                if(zero) {
+                                    rotEnc.setZeroPos(zero);
+                                } else {
+                                    rotEnc.setZeroPos((max(up,dn)-min(up,dn))/2);
+                                }
                             }
                         }
+                        saveCalib();
                     }
-                    ret = true;
-                }
+                } 
             } 
-        } 
-        configFile.close();
+            configFile.close();
+        }
+        removeOldFiles(caCfgName);
+        #endif
     }
-
-    // Do not write a default file, use pre-set value
-
-    return ret;
 }
 
 void saveCalib()
 {
-    const char *funcName = "saveCalib";
-    char buf1[16];
-    char buf2[16];
-    char buf3[16];
-    DECLARE_S_JSON(512,json);
-    bool doit = false;
-
-    if(!haveFS && !configOnSD) {
-        Serial.printf("%s: %s\n", funcName, fsNoAvail);
-        return;
-    }
-
     if(useRotEnc) {
-        sprintf(buf1, "%d", rotEnc.getMaxStepsUp());
-        sprintf(buf2, "%d", rotEnc.getMaxStepsDown());
-        if(!rotEnc.dynZeroPos()) {
-            sprintf(buf3, "%d", rotEnc.getZeroPos());
-        }
-        doit = true;
-    }
-
-    if(doit) {
-        json["Up"] = (const char *)buf1;
-        json["Down"] = (const char *)buf2;
-        if(!rotEnc.dynZeroPos()) {
-            json["Zero"] = (const char *)buf3;
-        }
-
-        writeJSONCfgFile(json, caCfgName, configOnSD, funcName);
+        secSettings.up   = rotEnc.getMaxStepsUp();
+        secSettings.dn   = rotEnc.getMaxStepsDown();
+        secSettings.zero = (!rotEnc.dynZeroPos()) ? rotEnc.getZeroPos() : 0;
+        saveSecSettings(true);
     }
 }
 
 /*
- *  Load/save the Brightness
+ *  Load/save display brightness
  */
 
-bool loadBrightness()
+void loadBrightness()
 {
-    const char *funcName = "loadBrightness";
-    char temp[6];
-    File configFile;
-
-    if(!haveFS && !configOnSD) {
+    if(haveSecSettings) {
         #ifdef REMOTE_DBG
-        Serial.printf("%s: %s\n", funcName, fsNoAvail);
+        Serial.println("loadCurVolume: extracting from secSettings");
         #endif
-        return false;
-    }
-
-    if(openCfgFileRead(briCfgName, configFile)) {
-        DECLARE_S_JSON(512,json);
-        if(!readJSONCfgFile(json, configFile, funcName)) {
-            if(!CopyCheckValidNumParm(json["brightness"], temp, sizeof(temp), 0, 15, DEF_BRI)) {
-                remdisplay.setBrightness((uint8_t)atoi(temp), true);
-            }
-        } 
-        configFile.close();
-    }
-
-    // Do not write a default file, use pre-set value
-
-    prevSavedBri = remdisplay.getBrightness();
-
-    return true;
-}
-
-void saveBrightness(bool useCache)
-{
-    const char *funcName = "saveBrightness";
-    char buf[6];
-    DECLARE_S_JSON(512,json);
-
-    if(useCache && (prevSavedBri == remdisplay.getBrightness())) {
-        #ifdef REMOTE_DBG
-        Serial.printf("%s: Prev. saved bri identical, not writing\n", funcName);
-        #endif
-        return;
-    }
-
-    if(!haveFS && !configOnSD) {
-        Serial.printf("%s: %s\n", funcName, fsNoAvail);
-        return;
-    }
-
-    sprintf(buf, "%d", remdisplay.getBrightness());
-    json["brightness"] = (const char *)buf;
-
-    if(writeJSONCfgFile(json, briCfgName, configOnSD, funcName)) {
-        prevSavedBri = remdisplay.getBrightness();
-    }
-}
-
-/*
- *  Load/save the Volume
- */
-
-#define T_V_MAX 19
-
-bool loadCurVolume()
-{
-    const char *funcName = "loadCurVolume";
-    char temp[6];
-    File configFile;
-
-    if(!haveFS && !configOnSD) {
-        #ifdef REMOTE_DBG
-        Serial.printf("%s: %s\n", funcName, fsNoAvail);
-        #endif
-        return false;
-    }
-
-    #ifdef REMOTE_DBG
-    Serial.printf("%s: Loading from %s\n", funcName, configOnSD ? "SD" : "flash FS");
-    #endif
-
-    if(openCfgFileRead(volCfgName, configFile)) {
-        DECLARE_S_JSON(512,json);
-        if(!readJSONCfgFile(json, configFile, funcName)) {
-            if(!CopyCheckValidNumParm(json["volume"], temp, sizeof(temp), 0, T_V_MAX, DEFAULT_VOLUME)) {
-                uint8_t ncv = atoi(temp);
-                if(ncv <= 19 || ncv == T_V_MAX) {
-                    curSoftVol = ncv;
-                } 
-            }
-        } 
-        configFile.close();
-    }
-
-    // Do not write a default file, use pre-set value
-
-    prevSavedVol = curSoftVol;
-
-    return true;
-}
-
-void saveCurVolume(bool useCache)
-{
-    const char *funcName = "saveCurVolume";
-    char buf[6];
-    DECLARE_S_JSON(512,json);
-
-    if(useCache && (prevSavedVol == curSoftVol)) {
-        #ifdef REMOTE_DBG
-        Serial.printf("%s: Prev. saved vol identical, not writing\n", funcName);
-        #endif
-        return;
-    }
-
-    if(!haveFS && !configOnSD) {
-        Serial.printf("%s: %s\n", funcName, fsNoAvail);
-        return;
-    }
-
-    sprintf(buf, "%d", curSoftVol);
-    json["volume"] = (const char *)buf;
-
-    if(writeJSONCfgFile(json, volCfgName, configOnSD, funcName)) {
-        prevSavedVol = curSoftVol;
-    }
-}
-
-#undef T_V_MAX
-
-
-/*
-   Load/save Music Folder Number (SD only)
-*/
-bool loadMusFoldNum()
-{
-    bool writedefault = true;
-    char temp[4];
-
-    if(!haveSD)
-        return false;
-
-    if(SD.exists(musCfgName)) {
-
-        File configFile = SD.open(musCfgName, "r");
-        if(configFile) {
+        remdisplay.setBrightness(secSettings.brightness, true);
+    } else {
+        #ifdef SETTINGS_TRANSITION
+        char temp[6];
+        File configFile;
+        if(!haveFS && !configOnSD) return;
+        if(openCfgFileRead(briCfgName, configFile)) {
             DECLARE_S_JSON(512,json);
-            if(!readJSONCfgFile(json, configFile, "loadMusFoldNum")) {
-                if(!CopyCheckValidNumParm(json["folder"], temp, sizeof(temp), 0, 9, 0)) {
-                    musFolderNum = atoi(temp);
-                    writedefault = false;
+            if(!readJSONCfgFile(json, configFile)) {
+                if(!CopyCheckValidNumParm(json["brightness"], temp, sizeof(temp), 0, 15, DEF_BRI)) {
+                    remdisplay.setBrightness((uint8_t)atoi(temp), true);
                 }
             } 
             configFile.close();
+            saveBrightness();
         }
-
+        removeOldFiles(briCfgName);
+        #endif
     }
-
-    if(writedefault) {
-        musFolderNum = 0;
-        saveMusFoldNum();
-    }
-
-    return true;
 }
 
-void saveMusFoldNum()
+void storeBrightness()
 {
-    const char *funcName = "saveMusFoldNum";
-    DECLARE_S_JSON(512,json);
-    char buf[4];
-
-    if(!haveSD)
-        return;
-
-    sprintf(buf, "%1d", musFolderNum);
-    json["folder"] = (const char *)buf;
-
-    writeJSONCfgFile(json, musCfgName, true, funcName);
+    secSettings.brightness = remdisplay.getBrightness();
 }
+
+void saveBrightness()
+{
+    storeBrightness();
+    saveSecSettings(true);
+}
+
+/*
+ *  Load/save volume
+ */
+
+void loadCurVolume()
+{
+    if(haveSecSettings) {
+        #ifdef REMOTE_DBG
+        Serial.println("loadCurVolume: extracting from secSettings");
+        #endif
+        if(secSettings.curSoftVol <= 19) {
+            curSoftVol = secSettings.curSoftVol;
+        }
+    } else {
+        #ifdef SETTINGS_TRANSITION
+        char temp[6];
+        File configFile;
+        if(!haveFS && !configOnSD) return;
+        if(openCfgFileRead(volCfgName, configFile)) {
+            DECLARE_S_JSON(512,json);
+            if(!readJSONCfgFile(json, configFile)) {
+                if(!CopyCheckValidNumParm(json["volume"], temp, sizeof(temp), 0, 19, DEFAULT_VOLUME)) {
+                    uint8_t ncv = atoi(temp);
+                    if(ncv <= 19) curSoftVol = ncv;
+                }
+            } 
+            configFile.close();
+            saveCurVolume();
+        }
+        removeOldFiles(volCfgName);
+        #endif
+    }
+}
+
+void storeCurVolume()
+{
+    // Used to keep secSettings up-to-date in case
+    // of delayed save
+    secSettings.curSoftVol = curSoftVol;
+}
+
+void saveCurVolume()
+{
+    storeCurVolume();
+    saveSecSettings(true);
+}
+
+/*
+ * Load/save movie mode
+ */
+
+void loadMovieMode()
+{
+    if(haveSecSettings) {
+        #ifdef REMOTE_DBG
+        Serial.println("loadMovieMode: extracting from secSettings");
+        #endif
+        movieMode = !!secSettings.movieMode;
+    }
+}
+
+void saveMovieMode()
+{
+    secSettings.movieMode = movieMode ? 1 : 0;
+    saveSecSettings(true);
+}
+
+/*
+ * Load/save "display TCD speed while off"
+ */
+
+void loadDisplayGPSMode()
+{
+    if(haveSecSettings) {
+        #ifdef REMOTE_DBG
+        Serial.println("loadDisplayGPSMode: extracting from secSettings");
+        #endif
+        displayGPSMode = !!secSettings.displayGPSMode;
+    }
+}
+
+void saveDisplayGPSMode()
+{
+    secSettings.displayGPSMode = displayGPSMode ? 1 : 0;
+    saveSecSettings(true);
+}
+
+/*
+ *  Load/save "show update notification at boot"
+ */
+
+static void loadUpdAvail()
+{
+    if(haveSecSettings) {
+        showUpdAvail = !!secSettings.showUpdAvail;
+    }
+}
+
+void saveUpdAvail()
+{
+    secSettings.showUpdAvail = showUpdAvail ? 1 : 0;
+    saveSecSettings(true);
+}
+
+// Special for CP where several settings are possibly
+// changed at the same time. We don't want to write the
+// file more than once.
+void saveAllSecCP()
+{
+    secSettings.movieMode = movieMode ? 1 : 0;
+    secSettings.displayGPSMode = displayGPSMode ? 1 : 0;
+    secSettings.showUpdAvail = showUpdAvail ? 1 : 0;
+    saveSecSettings(true);
+}
+
 
 /*
  *  Load/save the visual config (SD only)
@@ -1154,125 +1191,122 @@ void saveMusFoldNum()
 
 bool loadVis()
 {
-    const char *funcName = "loadVis";
-    char temp[16];
-    File configFile;
-    bool ret = false;
-
-    if(!haveSD) 
+    if(!haveSD)
         return false;
 
-    if(openCfgFileRead(visCfgName, configFile, true)) {
-        DECLARE_S_JSON(512,json);
-        if(!readJSONCfgFile(json, configFile, funcName)) {
-            if(!CopyCheckValidNumParm(json["visMode"], temp, sizeof(temp), 0, 0xff, 0)) {
-                visMode = (uint16_t)atoi(temp);
-                ret = true;
-            }
-        } 
-        configFile.close();
+    if(haveTerSettings) {
+        #ifdef REMOTE_DBG
+        Serial.println("loadVis: extracting from terSettings");
+        #endif
+        visMode = terSettings.visMode;
+        return true;
+    } else {
+        #ifdef SETTINGS_TRANSITION
+        char temp[16];
+        File configFile;
+        if(openCfgFileRead(visCfgName, configFile, true)) {
+            DECLARE_S_JSON(512,json);
+            if(!readJSONCfgFile(json, configFile)) {
+                if(!CopyCheckValidNumParm(json["visMode"], temp, sizeof(temp), 0, 0xff, 0)) {
+                    visMode = (uint16_t)atoi(temp);
+                }
+            } 
+            configFile.close();
+            disectOldVisMode();
+            updateVisMode();
+            saveVis();
+            saveMovieMode();
+            saveDisplayGPSMode();
+        }
+        removeOldFiles(visCfgName);
+        #endif
     }
-
-    // Do not write a default file, use pre-set value
-
-    prevSavedVIS = visMode;
-
-    #ifdef REMOTE_DBG
-    Serial.printf("%s: visMode %d\n", funcName, visMode);
-    #endif
-
-    return ret;
+    return false;
 }
 
-void saveVis(bool useCache)
+void storeVis()
 {
-    const char *funcName = "saveVIS";
-    char buf[16];
-    uint16_t tempVIS = visMode;
-    DECLARE_S_JSON(512,json);
+    // Used to keep secSettings up-to-date in case
+    // of delayed save
+    terSettings.visMode = visMode;
+}
 
-    if(useCache && (prevSavedVIS == tempVIS)) {
+void saveVis()
+{
+    storeVis();
+    saveTerSettings(true);
+}
+
+/*
+ *  Load/save Music Folder Number (SD only)
+ */
+void loadMusFoldNum()
+{
+    if(!haveSD)
+        return;
+
+    if(haveTerSettings) {
         #ifdef REMOTE_DBG
-        Serial.printf("%s: Prev. saved visMode identical, not writing\n", funcName);
+        Serial.println("loadMusFoldNum: extracting from terSettings");
         #endif
-        return;
+        if(terSettings.musFolderNum <= 9) {
+            musFolderNum = terSettings.musFolderNum;
+        }
+    } else {
+        #ifdef SETTINGS_TRANSITION
+        bool writedefault = true;
+        char temp[4];
+        if(SD.exists(musCfgName)) {
+            File configFile = SD.open(musCfgName, "r");
+            if(configFile) {
+                DECLARE_S_JSON(512,json);
+                if(!readJSONCfgFile(json, configFile)) {
+                    if(!CopyCheckValidNumParm(json["folder"], temp, sizeof(temp), 0, 9, 0)) {
+                        musFolderNum = atoi(temp);
+                        writedefault = false;
+                    }
+                } 
+                configFile.close();
+            }
+        }
+        if(writedefault) musFolderNum = 0;
+        saveMusFoldNum();
+        removeOldFiles(musCfgName);
+        #endif
     }
+}
 
-    if(!haveSD) {
-        Serial.printf("%s: %s\n", funcName, fsNoAvail);
-        return;
+void saveMusFoldNum()
+{
+    terSettings.musFolderNum = musFolderNum;
+    saveTerSettings(true);
+}
+
+void loadShuffle()
+{
+    if(haveSD && haveTerSettings) {
+        mpShuffle = !!terSettings.mpShuffle;
     }
+}
 
-    sprintf(buf, "%d", tempVIS);
-    json["visMode"] = (const char *)buf;
+void saveShuffle()
+{
+    terSettings.mpShuffle = mpShuffle;
+    saveTerSettings(true);
+}
 
-    if(writeJSONCfgFile(json, visCfgName, true, funcName)) {
-        prevSavedVIS = tempVIS;
-    }
+void saveAllTerCP()
+{
+    terSettings.musFolderNum = musFolderNum;
+    terSettings.visMode = visMode;
+    saveTerSettings(true);
 }
 
 /*
  * Load/save/delete settings for static IP configuration
  */
 
-bool loadIpSettings()
-{
-    bool invalid = false;
-    bool haveConfig = false;
-
-    if(!haveFS && !FlashROMode)
-        return false;
-
-    if( (!FlashROMode && SPIFFS.exists(ipCfgName)) ||
-        (FlashROMode && SD.exists(ipCfgName)) ) {
-
-        File configFile = FlashROMode ? SD.open(ipCfgName, "r") : SPIFFS.open(ipCfgName, "r");
-
-        if(configFile) {
-
-            DECLARE_S_JSON(512,json);
-            
-            DeserializationError error = readJSONCfgFile(json, configFile, "loadIpSettings");
-
-            if(!error) {
-
-                invalid |= CopyIPParm(json["IpAddress"], ipsettings.ip, sizeof(ipsettings.ip));
-                invalid |= CopyIPParm(json["Gateway"], ipsettings.gateway, sizeof(ipsettings.gateway));
-                invalid |= CopyIPParm(json["Netmask"], ipsettings.netmask, sizeof(ipsettings.netmask));
-                invalid |= CopyIPParm(json["DNS"], ipsettings.dns, sizeof(ipsettings.dns));
-                
-                haveConfig = !invalid;
-
-            } else {
-
-                invalid = true;
-
-            }
-
-            configFile.close();
-
-        }
-
-    }
-
-    if(invalid) {
-
-        // config file is invalid - delete it
-
-        Serial.println("loadIpSettings: IP settings invalid; deleting file");
-
-        deleteIpSettings();
-
-        memset(ipsettings.ip, 0, sizeof(ipsettings.ip));
-        memset(ipsettings.gateway, 0, sizeof(ipsettings.gateway));
-        memset(ipsettings.netmask, 0, sizeof(ipsettings.netmask));
-        memset(ipsettings.dns, 0, sizeof(ipsettings.dns));
-
-    }
-
-    return haveConfig;
-}
-
+#ifdef SETTINGS_TRANSITION
 static bool CopyIPParm(const char *json, char *text, uint8_t psize)
 {
     if(!json) return true;
@@ -1284,23 +1318,90 @@ static bool CopyIPParm(const char *json, char *text, uint8_t psize)
     strncpy(text, json, psize-1);
     return false;
 }
+#endif
+
+bool loadIpSettings()
+{
+    memset((void *)&ipsettings, 0, sizeof(ipsettings));
+
+    if(!haveFS && !FlashROMode)
+        return false;
+
+    int vb = 0;
+    if(loadConfigFile(ipCfgName, (uint8_t *)&ipsettings, sizeof(ipsettings), vb, -1)) {
+        #ifdef REMOTE_DBG
+        Serial.println("loadIpSettings: Loaded bin settings");
+        #endif
+        if(strlen(ipsettings.ip)) {
+            if(checkIPConfig()) {
+                ipHash = calcHash((uint8_t *)&ipsettings, sizeof(ipsettings));
+                return true;
+            } else {
+                #ifdef REMOTE_DBG
+                Serial.println("loadIpSettings: IP settings invalid; deleting file");
+                #endif
+                memset((void *)&ipsettings, 0, sizeof(ipsettings));
+                deleteIpSettings();
+            }
+        }
+    } else {
+        #ifdef SETTINGS_TRANSITION
+        bool invalid = false;
+        bool haveConfig = false;
+        if( (!FlashROMode && MYNVS.exists(ipCfgNameO)) ||
+            (FlashROMode && SD.exists(ipCfgNameO)) ) {
+            File configFile = FlashROMode ? SD.open(ipCfgNameO, "r") : MYNVS.open(ipCfgNameO, "r");
+            if(configFile) {
+                DECLARE_S_JSON(512,json);
+                DeserializationError error = readJSONCfgFile(json, configFile);
+                if(!error) {
+                    invalid |= CopyIPParm(json["IpAddress"], ipsettings.ip, sizeof(ipsettings.ip));
+                    invalid |= CopyIPParm(json["Gateway"], ipsettings.gateway, sizeof(ipsettings.gateway));
+                    invalid |= CopyIPParm(json["Netmask"], ipsettings.netmask, sizeof(ipsettings.netmask));
+                    invalid |= CopyIPParm(json["DNS"], ipsettings.dns, sizeof(ipsettings.dns));
+                    haveConfig = !invalid;
+                } else {
+                    invalid = true;
+                }
+                configFile.close();
+            }
+            removeOldFiles(ipCfgNameO);
+        }
+        if(invalid) {
+            memset((void *)&ipsettings, 0, sizeof(ipsettings));
+        } else {
+            writeIpSettings();
+        }
+        return haveConfig;
+        #endif
+    }
+
+    ipHash = 0;
+    return false;
+}
 
 void writeIpSettings()
 {
-    DECLARE_S_JSON(512,json);
-
     if(!haveFS && !FlashROMode)
         return;
 
-    if(strlen(ipsettings.ip) == 0)
+    if(!strlen(ipsettings.ip))
         return;
-    
-    json["IpAddress"] = (const char *)ipsettings.ip;
-    json["Gateway"]   = (const char *)ipsettings.gateway;
-    json["Netmask"]   = (const char *)ipsettings.netmask;
-    json["DNS"]       = (const char *)ipsettings.dns;
 
-    writeJSONCfgFile(json, ipCfgName, FlashROMode, "writeIpSettings");
+    uint32_t nh = calcHash((uint8_t *)&ipsettings, sizeof(ipsettings));
+    
+    if(ipHash) {
+        if(nh == ipHash) {
+            #ifdef REMOTE_DBG
+            Serial.printf("writeIpSettings: Not writing, hash identical (%x)\n", ipHash);
+            #endif
+            return;
+        }
+    }
+
+    ipHash = nh;
+    
+    saveConfigFile(ipCfgName, (uint8_t *)&ipsettings, sizeof(ipsettings), -1);
 }
 
 void deleteIpSettings()
@@ -1309,10 +1410,12 @@ void deleteIpSettings()
     Serial.println("deleteIpSettings: Deleting ip config");
     #endif
 
+    ipHash = 0;
+
     if(FlashROMode) {
         SD.remove(ipCfgName);
     } else if(haveFS) {
-        SPIFFS.remove(ipCfgName);
+        MYNVS.remove(ipCfgName);
     }
 }
 
@@ -1322,53 +1425,40 @@ void deleteIpSettings()
 
 static bool loadId()
 {
-    bool invalid = false;
-    bool haveConfig = false;
-  
-    if(!haveFS && !FlashROMode)
-        return false;
-  
-    if( (!FlashROMode && SPIFFS.exists(idName)) ||
-         (FlashROMode && SD.exists(idName)) ) {
-  
-        File configFile = FlashROMode ? SD.open(idName, "r") : SPIFFS.open(idName, "r");
-    
-        if(configFile) {
-    
-            DECLARE_S_JSON(512, json);
-      
-            DeserializationError error = readJSONCfgFile(json, configFile, "loadId");
-      
-            if(!error) {
-      
-                myRemID = (uint32_t)json["ID"];
-        
-                #ifdef REMOTE_DBG
-                Serial.printf("Loaded Remote ID: 0x%lx\n", myRemID);
-                #endif
-        
-                invalid = (myRemID == 0);
-        
-                haveConfig = !invalid;
-      
-            } else {
-      
-                invalid = true;
-      
+    uint32_t buf = 0;
+    int vb = 0;
+    if(loadConfigFile(idName, (uint8_t *)&buf, sizeof(buf), vb, -1)) {
+        #ifdef REMOTE_DBG
+        Serial.println("loadId: Loaded bin settings");
+        #endif
+        myRemID = buf;
+        return true;
+    } else {
+        #ifdef SETTINGS_TRANSITION
+        bool invalid = false;
+        bool haveConfig = false;
+        if(!haveFS && !FlashROMode) return false;
+        if( (!FlashROMode && MYNVS.exists(idNameO)) ||
+             (FlashROMode && SD.exists(idNameO)) ) {
+            File configFile = FlashROMode ? SD.open(idNameO, "r") : MYNVS.open(idNameO, "r");
+            if(configFile) {
+                DECLARE_S_JSON(512, json);
+                DeserializationError error = readJSONCfgFile(json, configFile);
+                if(!error) {
+                    myRemID = (uint32_t)json["ID"];
+                    invalid = (myRemID == 0);
+                    if(!invalid) saveId();
+                    haveConfig = !invalid;
+                }
+                configFile.close();
             }
-      
-            configFile.close();
-  
-      }
-  
+            removeOldFiles(idNameO);
+        }
+        return haveConfig;
+        #endif
     }
-  
-    if(invalid) {
-        // config file is invalid
-        Serial.println("loadId: ID invalid; creating new ID");
-    }
-  
-    return haveConfig;
+
+    return false;
 }
 
 static uint32_t createId()
@@ -1378,25 +1468,16 @@ static uint32_t createId()
 
 static void saveId()
 {
-    DECLARE_S_JSON(512, json);
-  
     if(!haveFS && !FlashROMode)
         return;
-  
-    json["ID"] = myRemID;
-  
-    writeJSONCfgFile(json, idName, FlashROMode, "saveId");
+
+    saveConfigFile(idName, (uint8_t *)&myRemID, sizeof(myRemID), -1);
 }
 
 /*
-   Audio file installer
-
-   Copies our default audio files from SD to flash FS.
-   The is restricted to the original default audio
-   files that came with the software. If you want to
-   customize your sounds, put them on a FAT32 formatted
-   SD card and leave this SD card in the slot.
-*/
+ * Sound pack installer
+ *
+ */
 bool check_allow_CPA()
 {
     return allowCPA;
@@ -1430,7 +1511,7 @@ bool check_if_default_audio_present()
             file.close();
             if((!memcmp(dbuf, CONID, 4))             && 
                ((*(dbuf+4) & 0x7f) == AC_FMTV)       &&
-               (!memcmp(dbuf+5, SND_REQ_VERSION, 4)) &&
+               (!memcmp(dbuf+5, rspv, 4))            &&
                (*(dbuf+9) == (NUM_AUDIOFILES+1))     &&
                (getuint32(dbuf+10) == soa)           &&
                (ts > soa + AC_OHSZ)) {
@@ -1475,12 +1556,7 @@ void doCopyAudioFiles()
 
     if((!copy_audio_files(delIDfile)) && !FlashROMode) {
         // If copy fails because of a write error, re-format flash FS
-        formatFlashFS(false);       // Format
-        rewriteSecondarySettings(); // Re-write secondary settings
-        #ifdef REMOTE_DBG 
-        Serial.println("Re-writing general settings");
-        #endif
-        write_settings();           // Re-write general settings
+        reInstallFlashFS();
         copy_audio_files(delIDfile);// Retry copy
     }
 
@@ -1560,7 +1636,7 @@ static void cfc(File& sfile, bool doCopy, int& haveErr, int& haveWriteErr)
         skip = !doCopy;
     }
     if(!skip) {
-        if((dfile = (tSD || FlashROMode) ? SD.open((const char *)buf1, FILE_WRITE) : SPIFFS.open((const char *)buf1, FILE_WRITE))) {
+        if((dfile = (tSD || FlashROMode) ? SD.open((const char *)buf1, FILE_WRITE) : MYNVS.open((const char *)buf1, FILE_WRITE))) {
             uint32_t t = 1024;
             #ifdef REMOTE_DBG
             Serial.printf("%s: Opened destination file: %s, length %d\n", funcName, (const char *)buf1, s);
@@ -1609,9 +1685,9 @@ static bool audio_files_present(int& alienVER)
         // No SD, no FS - don't even bother....
         if(!haveFS)
             return true;
-        if(!SPIFFS.exists(fn))
+        if(!MYNVS.exists(fn))
             return false;
-        if(!(file = SPIFFS.open(fn, FILE_READ)))
+        if(!(file = MYNVS.open(fn, FILE_READ)))
             return false;
     }
 
@@ -1619,10 +1695,10 @@ static bool audio_files_present(int& alienVER)
     file.close();
 
     if(!FlashROMode) {
-        alienVER = memcmp(buf, SND_REQ_VERSION, 2) ? 1 : 0;
+        alienVER = memcmp(buf, rspv, 2) ? 1 : 0;
     }
 
-    return (!memcmp(buf, SND_REQ_VERSION, 4));
+    return (!memcmp(buf, rspv, 4));
 }
 
 void delete_ID_file()
@@ -1650,8 +1726,8 @@ static bool formatFlashFS(bool userSignal)
         #endif
     }
 
-    SPIFFS.format();
-    if(SPIFFS.begin()) ret = true;
+    MYNVS.format();
+    if(MYNVS.begin()) ret = true;
 
     if(userSignal) {
         endWaitSequence();
@@ -1660,71 +1736,95 @@ static bool formatFlashFS(bool userSignal)
     return ret;
 }
 
-/* Copy secondary settings from/to SD if user
- * changed "save to SD"-option in CP
+/*
+ * Re-format flash FS and write back all settings.
+ * Used during audio file installation when flash FS needs
+ * to be re-formatted.
+ * Is never called in FlashROmode.
+ * Needs a reboot afterwards!
  */
-void copySettings()
+static void reInstallFlashFS()
 {
-    if(!haveSD || !haveFS)
-        return;
+    // Format partition
+    formatFlashFS(false);
 
-    configOnSD = !configOnSD;
+    // Rewrite all settings residing in NVS
+    #ifdef REMOTE_DBG
+    Serial.println("Re-writing main, ip settings and RemoteID");
+    #endif
 
-    if(configOnSD || !FlashROMode) {
+    saveId();
+    
+    mainConfigHash = 0;
+    write_settings();
+
+    ipHash = 0;
+    writeIpSettings();
+
+    if(!configOnSD) {
         #ifdef REMOTE_DBG
-        Serial.println("copySettings: Copying secondary settings to other medium");
+        Serial.println("Re-writing MQTT and secondary settings");
         #endif
         #ifdef REMOTE_HAVEMQTT
+        mqttConfigHash = 0;
         write_mqtt_settings();
         #endif
-        saveCalib();
-        saveBrightness(false);
-        saveCurVolume(false);
+        saveSecSettings(false);
+    }
+}
+
+/* 
+ * Copy secondary settings from/to SD if user
+ * changed "save to SD"-option in CP
+ */
+void moveSettings()
+{       
+    if(!haveSD || !haveFS) 
+        return;
+
+    if(configOnSD && FlashROMode) {
+        #ifdef REMOTE_DBG
+        Serial.println("moveSettings: Writing to flash prohibted (FlashROMode), aborting.");
+        #endif
     }
 
+    // Flush pending saves
+    flushDelayedSave();
+
     configOnSD = !configOnSD;
-}
-
-// Re-write secondary settings
-// Used during audio file installation when flash FS needs
-// to be re-formatted.
-// Is never called in FlashROmode
-static void rewriteSecondarySettings()
-{
-    bool oldconfigOnSD = configOnSD;
     
-    #ifdef REMOTE_DBG
-    Serial.println("Re-writing secondary settings");
-    #endif
-    
-    writeIpSettings();
-    saveId();
-
-    // Create current settings on flash FS
-    // regardless of SD-option
-    configOnSD = false;
-
     #ifdef REMOTE_HAVEMQTT
+    mqttConfigHash = 0;
     write_mqtt_settings();
     #endif
-    saveCalib();
-    saveBrightness(false);
-    saveCurVolume(false);
-    
-    configOnSD = oldconfigOnSD;
-}
+    saveSecSettings(false);
+
+    configOnSD = !configOnSD;
+
+    if(configOnSD) {
+        #ifdef REMOTE_HAVEMQTT
+        SD.remove(haCfgName);
+        #endif
+        SD.remove(secCfgName);
+    } else {
+        #ifdef REMOTE_HAVEMQTT
+        MYNVS.remove(haCfgName);
+        #endif
+        MYNVS.remove(secCfgName);
+    }
+}    
 
 /*
  * Helpers for JSON config files
  */
-static DeserializationError readJSONCfgFile(JsonDocument& json, File& configFile, const char *funcName)
+static DeserializationError readJSONCfgFile(JsonDocument& json, File& configFile, uint32_t *readHash)
 {
     const char *buf = NULL;
     size_t bufSize = configFile.size();
     DeserializationError ret;
 
     if(!(buf = (const char *)malloc(bufSize + 1))) {
-        Serial.printf("%s: Buffer allocation failed (%d)\n", funcName, bufSize);
+        Serial.printf("rJSON: Buffer allocation failed (%d)\n", bufSize);
         return DeserializationError::NoMemory;
     }
 
@@ -1735,6 +1835,10 @@ static DeserializationError readJSONCfgFile(JsonDocument& json, File& configFile
     #ifdef REMOTE_DBG
     Serial.println(buf);
     #endif
+
+    if(readHash) {
+        *readHash = calcHash((uint8_t *)buf, bufSize);
+    }
     
     ret = deserializeJson(json, buf);
 
@@ -1743,14 +1847,14 @@ static DeserializationError readJSONCfgFile(JsonDocument& json, File& configFile
     return ret;
 }
 
-static bool writeJSONCfgFile(const JsonDocument& json, const char *fn, bool useSD, const char *funcName)
+static bool writeJSONCfgFile(const JsonDocument& json, const char *fn, bool useSD, uint32_t oldHash, uint32_t *newHash)
 {
     char *buf;
     size_t bufSize = measureJson(json);
     bool success = false;
 
     if(!(buf = (char *)malloc(bufSize + 1))) {
-        Serial.printf("%s: Buffer allocation failed (%d)\n", funcName, bufSize);
+        Serial.printf("wJSON: Buffer allocation failed (%d)\n", bufSize);
         return false;
     }
 
@@ -1762,6 +1866,22 @@ static bool writeJSONCfgFile(const JsonDocument& json, const char *fn, bool useS
     Serial.println((const char *)buf);
     #endif
 
+    if(oldHash || newHash) {
+        uint32_t newH = calcHash((uint8_t *)buf, bufSize);
+        
+        if(newHash) *newHash = newH;
+    
+        if(oldHash) {
+            if(oldHash == newH) {
+                #ifdef REMOTE_DBG
+                Serial.printf("Not writing %s, hash identical (%x)\n", fn, oldHash);
+                #endif
+                free(buf);
+                return true;
+            }
+        }
+    }
+
     if(useSD) {
         success = writeFileToSD(fn, (uint8_t *)buf, (int)bufSize);
     } else {
@@ -1771,46 +1891,252 @@ static bool writeJSONCfgFile(const JsonDocument& json, const char *fn, bool useS
     free(buf);
 
     if(!success) {
-        Serial.printf("%s: %s\n", funcName, failFileWrite);
+        Serial.printf("wJSON: %s\n", failFileWrite);
     }
 
     return success;
 }
 
 /*
- * Generic file readers/writes for external
+ * Generic file readers/writers
  */
+
+static bool readFile(File& myFile, uint8_t *buf, int len)
+{
+    if(myFile) {
+        size_t bytesr = myFile.read(buf, len);
+        myFile.close();
+        return (bytesr == len);
+    } else
+        return false;
+}
+
+static bool readFileU(File& myFile, uint8_t*& buf, int& len)
+{
+    if(myFile) {
+        len = myFile.size();
+        buf = (uint8_t *)malloc(len+1);
+        if(buf) {
+            buf[len] = 0;
+            return readFile(myFile, buf, len);
+        } else {
+            myFile.close();
+        }
+    }
+    return false;
+}
+
+// Read file of unknown size from SD
+static bool readFileFromSDU(const char *fn, uint8_t*& buf, int& len)
+{   
+    if(!haveSD)
+        return false;
+
+    File myFile = SD.open(fn, FILE_READ);
+    return readFileU(myFile, buf, len);
+}
+
+// Read file of unknown size from NVS
+static bool readFileFromFSU(const char *fn, uint8_t*& buf, int& len)
+{   
+    if(!haveFS || !MYNVS.exists(fn))
+        return false;
+
+    File myFile = MYNVS.open(fn, FILE_READ);
+    return readFileU(myFile, buf, len);
+}
+
+// Read file of known size from SD
+static bool readFileFromSD(const char *fn, uint8_t *buf, int len)
+{   
+    if(!haveSD)
+        return false;
+
+    File myFile = SD.open(fn, FILE_READ);
+    return readFile(myFile, buf, len);
+}
+
+// Read file of known size from NVS
+static bool readFileFromFS(const char *fn, uint8_t *buf, int len)
+{
+    if(!haveFS || !MYNVS.exists(fn))
+        return false;
+
+    File myFile = MYNVS.open(fn, FILE_READ);
+    return readFile(myFile, buf, len);
+}
+
+static bool writeFile(File& myFile, uint8_t *buf, int len)
+{
+    if(myFile) {
+        size_t bytesw = myFile.write(buf, len);
+        myFile.close();
+        return (bytesw == len);
+    } else
+        return false;
+}
+
+// Write file to SD
 static bool writeFileToSD(const char *fn, uint8_t *buf, int len)
 {
-    size_t bytesw;
-    
     if(!haveSD)
         return false;
 
     File myFile = SD.open(fn, FILE_WRITE);
-    if(myFile) {
-        bytesw = myFile.write(buf, len);
-        myFile.close();
-        return (bytesw == len);
-    } else
-        return false;
+    return writeFile(myFile, buf, len);
 }
 
+// Write file to NVS
 static bool writeFileToFS(const char *fn, uint8_t *buf, int len)
 {
-    size_t bytesw;
-    
     if(!haveFS)
         return false;
 
-    File myFile = SPIFFS.open(fn, FILE_WRITE);
-    if(myFile) {
-        bytesw = myFile.write(buf, len);
-        myFile.close();
-        return (bytesw == len);
-    } else
-        return false;
+    File myFile = MYNVS.open(fn, FILE_WRITE);
+    return writeFile(myFile, buf, len);
 }
+
+static uint8_t cfChkSum(const uint8_t *buf, int len)
+{
+    uint16_t s = 0;
+    while(len--) {
+        s += *buf++;
+    }
+    s = (s >> 8) + (s & 0xff);
+    s += (s >> 8);
+    return (uint8_t)(~s);
+}
+
+static bool loadConfigFile(const char *fn, uint8_t *buf, int len, int& validBytes, int forcefs)
+{
+    bool haveConfigFile = false;
+    int fl;
+    uint8_t *bbuf = NULL;
+
+    // forcefs: > 0: SD only; = 0 either (configOnSD); < 0: Flash if !FlashROMode, SD if FlashROMode
+
+    if(haveSD && ((!forcefs && configOnSD) || forcefs > 0 || (forcefs < 0 && FlashROMode))) {
+        haveConfigFile = readFileFromSDU(fn, bbuf, fl);
+    }
+    if(!haveConfigFile && haveFS && (!forcefs || (forcefs < 0 && !FlashROMode))) {
+        haveConfigFile = readFileFromFSU(fn, bbuf, fl);
+    }
+    if(haveConfigFile) {
+        uint8_t chksum = cfChkSum(bbuf, fl - 1);
+        if((haveConfigFile = (bbuf[fl - 1] == chksum))) {
+            validBytes = bbuf[0] | (bbuf[1] << 8);
+            memcpy(buf, bbuf + 2, min(len, validBytes));
+            haveConfigFile = true; // (len <= validBytes);
+            #ifdef REMOTE_DBG
+            Serial.printf("loadConfigFile: loaded %s: need %d, got %d bytes: ", fn, len, validBytes);
+            for(int k = 0; k < len; k++) Serial.printf("%02x ", buf[k]);
+            Serial.printf("chksum %02x\n", chksum);
+            #endif
+        } else {
+            #ifdef REMOTE_DBG
+            Serial.printf("loadConfigFile: Bad checksum %02x %02x\n", chksum, bbuf[fl - 1]);
+            #endif
+        }
+    }
+
+    if(bbuf) free(bbuf);
+
+    return haveConfigFile;
+}
+
+static bool saveConfigFile(const char *fn, uint8_t *buf, int len, int forcefs)
+{
+    uint8_t *bbuf;
+    bool ret = false;
+
+    if(!(bbuf = (uint8_t *)malloc(len + 3)))
+        return false;
+
+    bbuf[0] = len & 0xff;
+    bbuf[1] = len >> 8;
+    memcpy(bbuf + 2, buf, len);
+    bbuf[len + 2] = cfChkSum(bbuf, len + 2);
+    
+    #ifdef REMOTE_DBG
+    Serial.printf("saveConfigFile: %s: ", fn);
+    for(int k = 0; k < len + 3; k++) Serial.printf("0x%02x ", bbuf[k]);
+    Serial.println("");
+    #endif
+
+    if((!forcefs && configOnSD) || forcefs > 0 || (forcefs < 0 && FlashROMode)) {
+        ret = writeFileToSD(fn, bbuf, len + 3);
+    } else if(haveFS) {
+        ret = writeFileToFS(fn, bbuf, len + 3);
+    }
+
+    free(bbuf);
+
+    return ret;
+}
+
+static uint32_t calcHash(uint8_t *buf, int len)
+{
+    uint32_t hash = 2166136261UL;
+    for(int i = 0; i < len; i++) {
+        hash = (hash ^ buf[i]) * 16777619;
+    }
+    return hash;
+}
+
+static bool saveSecSettings(bool useCache)
+{
+    uint32_t oldHash = secSettingsHash;
+
+    secSettingsHash = calcHash((uint8_t *)&secSettings, sizeof(secSettings));
+    
+    if(useCache) {
+        if(oldHash == secSettingsHash) {
+            #ifdef REMOTE_DBG
+            Serial.printf("saveSecSettings: Data up to date, not writing (%x)\n", secSettingsHash);
+            #endif
+            return true;
+        }
+    }
+    
+    return saveConfigFile(secCfgName, (uint8_t *)&secSettings, sizeof(secSettings), 0);
+}
+
+static bool saveTerSettings(bool useCache)
+{
+    if(!haveSD)
+        return false;
+
+    uint32_t oldHash = terSettingsHash;
+    
+    terSettingsHash = calcHash((uint8_t *)&terSettings, sizeof(terSettings));
+    
+    if(useCache) {
+        if(oldHash == terSettingsHash) {
+            #ifdef REMOTE_DBG
+            Serial.printf("saveTerSettings: Data up to date, not writing (%x)\n", terSettingsHash);
+            #endif
+            return true;
+        }
+    }
+    
+    return saveConfigFile(terCfgName, (uint8_t *)&terSettings, sizeof(terSettings), 1);
+}
+
+#ifdef SETTINGS_TRANSITION
+static void removeOldFiles(const char *oldfn)
+{
+    if(haveSD) SD.remove(oldfn);
+    if(haveFS) MYNVS.remove(oldfn);
+    #ifdef REMOTE_DBG
+    Serial.printf("removeOldFiles: Removing %s\n", oldfn);
+    #endif
+}
+#endif
+
+
+/*
+ * File upload
+ */
 
 static char *allocateUploadFileName(const char *fn, int idx)
 {

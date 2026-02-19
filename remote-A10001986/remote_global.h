@@ -15,10 +15,8 @@
  ***                          Version Strings                          ***
  *************************************************************************/
 
-#define REMOTE_VERSION "V1.16"
-#define REMOTE_VERSION_EXTRA "JAN092026"
-
-//#define REMOTE_DBG              // debug output on Serial
+#define REMOTE_VERSION "V1.20"              // Do NOT change format.
+#define REMOTE_VERSION_EXTRA "FEB152026"
 
 /*************************************************************************
  ***             Configuration for hardware/peripherals                ***
@@ -53,6 +51,13 @@
 
 // Use SPIFFS (if defined) or LittleFS (if undefined; esp32-arduino >= 2.x)
 //#define USE_SPIFFS
+
+/*************************************************************************
+ ***                               Debug                               ***
+ *************************************************************************/
+
+//#define REMOTE_DBG            // Generic except below
+//#define REMOTE_DBG_NET        // Prop network related
 
 /*************************************************************************
  ***                  esp32-arduino version detection                  ***

@@ -55,6 +55,7 @@
 extern bool haveFS;
 extern bool haveSD;
 extern bool FlashROMode;
+extern const char rspv[];
 
 extern bool haveAudioFiles;
 
@@ -80,8 +81,6 @@ extern uint8_t musFolderNum;
 #define DEF_PLAY_ALM_SND    0     // 1: Play TCD-alarm sound, 0: do not
 #define DEF_DISP_GPS        0     // 1: Display TCD speed (GPS, RotEnc) when fake-off, 0: Do not
 #define DEF_BRI             15    // Default display brightness
-
-#define DEF_SHUFFLE         0     // Music Player: Do not shuffle by default
 
 #define DEF_TCD_IP          ""    // TCD ip address or hostname for networked polling
 #define DEF_PWR_MST         0     // 0: Remote is not BTTFN-wide power-master, 1: Remote is.
@@ -119,19 +118,13 @@ struct Settings {
     char wifiAPOffDelay[4]  = MS(DEF_WIFI_APOFFDELAY);
     char reactAPOnFP[4]     = MS(DEF_REACT_AP_ON_FP);
 
-    char coast[4]           = MS(DEF_COAST);
     char autoThrottle[4]    = MS(DEF_AT);
-    char movieMode[4]       = MS(DEF_MOV_MD);       // saved, but overruled by vis config file
+    char coast[4]           = MS(DEF_COAST);
     char playClick[4]       = MS(DEF_PLAY_CLK);
     char playALsnd[4]       = MS(DEF_PLAY_ALM_SND);
-    char dgps[4]            = MS(DEF_DISP_GPS);     // saved, but overruled by vis config file
-
-    char shuffle[4]         = MS(DEF_SHUFFLE);
 
     char tcdIP[32]          = DEF_TCD_IP;
     char pwrMst[4]          = MS(DEF_PWR_MST);
-    char oorst[4]           = MS(DEF_OORST);
-    char ooTT[4]            = MS(DEF_OO_TT);
 
 #ifdef REMOTE_HAVEMQTT  
     char useMQTT[4]         = "0";
@@ -145,6 +138,9 @@ struct Settings {
 
     char CfgOnSD[4]         = MS(DEF_CFG_ON_SD);
     char sdFreq[4]          = MS(DEF_SD_FREQ);
+
+    char oorst[4]           = MS(DEF_OORST);
+    char ooTT[4]            = MS(DEF_OO_TT);
 
 #ifdef ALLOW_DIS_UB
     char disBPack[4]        = MS(DEF_DIS_BPACK);
@@ -176,10 +172,12 @@ struct Settings {
     char batType[4]         = MS(DEF_BAT_TYPE);
     char batCap[8]          = MS(DEF_BAT_CAP);
 #endif    
-   
-    char Vol[6];
+
+    // Kludges for CP
+    char movieMode[4]       = MS(DEF_MOV_MD);
+    char dgps[4]            = MS(DEF_DISP_GPS);
+    char upd[4]             = "1";
     char musicFolder[6];
-    char Bri[6];
 };
 
 struct IPSettings {
@@ -202,29 +200,44 @@ bool checkConfigExists();
 void write_mqtt_settings();
 #endif
 
-bool loadCalib();
+bool evalBool(char *s);
+
+void loadCalib();
 void saveCalib();
 
+void loadBrightness();
+void storeBrightness();
+void saveBrightness();
+
+void loadCurVolume();
+void storeCurVolume();
+void saveCurVolume();
+
+void loadMovieMode();
+void saveMovieMode();
+
+void loadDisplayGPSMode();
+void saveDisplayGPSMode();
+
+void saveUpdAvail();
+
+void saveAllSecCP();
+
 bool loadVis();
-void saveVis(bool useCache = true);
+void storeVis();
+void saveVis();
 
-bool loadBrightness();
-void saveBrightness(bool useCache = true);
-
-bool loadCurVolume();
-void saveCurVolume(bool useCache = true);
-
-bool loadMusFoldNum();
+void loadMusFoldNum();
 void saveMusFoldNum();
 
-bool loadVis();
-void saveVis(bool useCache);
+void loadShuffle();
+void saveShuffle();
+
+void saveAllTerCP();
 
 bool loadIpSettings();
 void writeIpSettings();
 void deleteIpSettings();
-
-void copySettings();
 
 bool check_if_default_audio_present();
 bool prepareCopyAudioFiles();
@@ -232,6 +245,8 @@ void doCopyAudioFiles();
 
 bool check_allow_CPA();
 void delete_ID_file();
+
+void moveSettings();
 
 #define MAX_SIM_UPLOADS 16
 #define UPL_OPENERR 1

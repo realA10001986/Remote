@@ -156,11 +156,12 @@ static const uint16_t font7segGeneric[48] = {
 
 static const struct dispConf {
     uint8_t  num_digs;       //   total number of digits/letters
+    uint8_t  max_bufPos;     //   highest buffer position to update
     uint8_t  bufPosArr[4];   //   The buffer positions of each of the digits from left to right
     uint8_t  bufShftArr[4];  //   Shift-value for each digit from left to right
     const uint16_t *fontSeg; //   Pointer to font
 } displays[REM_DISP_NUM_TYPES] = {  
-    { 4, { 0, 0, 1, 2 }, { 0, 8, 0, 0 }, font7segGeneric }
+    { 4, 2, { 0, 0, 1, 2 }, { 0, 8, 0, 0 }, font7segGeneric }
 };
 
 // Store i2c address
@@ -184,6 +185,7 @@ bool remDisplay::begin()
 
         _dispType = 0;
         _num_digs = displays[_dispType].num_digs;
+        _buf_max = displays[_dispType].max_bufPos;
         _bufPosArr = displays[_dispType].bufPosArr;
         _bufShftArr = displays[_dispType].bufShftArr;
 
@@ -197,14 +199,6 @@ bool remDisplay::begin()
         _dig_1_shift = *(_bufShftArr + 2);
         _dot_pos01   = *(_bufPosArr + 1);
         _dot01_shift = _dig01_shift = *(_bufShftArr + 1);
-
-        _buf_max = 0;
-        for(int i = 0; i < _num_digs; i++) {
-            if(_buf_max < *(_bufPosArr + i)) {
-                _buf_max = *(_bufPosArr + i);
-            }
-        }
-        _buf_max++;
     }
 
     directCmd(0x20 | 1); // turn on oscillator
@@ -297,7 +291,7 @@ void remDisplay::show()
         Wire.beginTransmission(_address);
         Wire.write(0x00);  // start address
     
-        for(i = 0; i < _buf_max; i++) {
+        for(i = 0; i <= _buf_max; i++) {
             Wire.write(_displayBuffer[i] & 0xFF);
             Wire.write(_displayBuffer[i] >> 8);
         }
@@ -411,9 +405,9 @@ void remDisplay::clearDisplay()
         Wire.beginTransmission(_address);
         Wire.write(0x00);  // start address
     
-        for(int i = 0; i < _buf_max; i++) {
-            Wire.write(0x0);
-            Wire.write(0x0);
+        for(int i = 0; i <= _buf_max; i++) {
+            Wire.write(0x00);
+            Wire.write(0x00);
         }
     
         Wire.endTransmission();

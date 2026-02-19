@@ -69,6 +69,8 @@ extern remDisplay remdisplay;
 extern remLED remledPwr;
 extern remLED remledStop;
 
+extern bool showUpdAvail;
+
 extern bool useRotEnc;
 
 extern bool havePwrMon;
@@ -114,6 +116,7 @@ void flushDelayedSave();
 void increaseVolume();
 void decreaseVolume();
 
+void disectOldVisMode();
 void updateVisMode();
 
 void setAutoThrottle(bool isOn);

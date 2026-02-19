@@ -67,14 +67,17 @@ void wifi_loop();
 void wifiOn(unsigned long newDelay = 0);
 bool wifiNeedReConnect(bool& blocks);
 void wifiStartCP();
+bool updateAvailable();
 
-void updateConfigPortalValues();
-void updateConfigPortalBriValues();
 void updateConfigPortalMFValues();
 void updateConfigPortalVisValues();
+void updateConfigPortalVis2Values();
+void updateConfigPortalUpdValues();
 
 bool wifi_getIP(uint8_t& a, uint8_t& b, uint8_t& c, uint8_t& d);
 bool isIp(char *str);
+
+bool checkIPConfig();
 
 #ifdef REMOTE_HAVEMQTT
 void mqttPublish(const char *topic, const char *pl, unsigned int len);

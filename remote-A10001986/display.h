@@ -133,8 +133,8 @@ class remDisplay {
         uint8_t _origBrightness = 15;
 
         int8_t   _dispType = -1;
-        int      _buf_max = 0;      //      number of buffer positions used
-        uint8_t  _num_digs;         //      total number of digits/letters (max 4)
+        unsigned int _buf_max = 0;  //      number of buffer positions used
+        unsigned int _num_digs;     //      total number of digits/letters (max 4)
         const uint8_t *_bufPosArr;  //      Array of buffer positions for digits left->right
         const uint8_t *_bufShftArr; //      Array of shift values for each digit
 

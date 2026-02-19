@@ -135,6 +135,19 @@
 
 /*  Changelog
  *  
+ *  2026/02/15 (A10001986) [1.20]
+ *    - New file format for secondary and IP settings. This version of the firmware
+ *      converts old to new.
+ *    - "Shuffle" setting changes through buttons are saved (SD required).
+ *      (Shuffle option removed from CP)
+ *    - Superfluous "Brightness" setting removed from CP. Brightness is adjustable
+ *      using buttons.
+ *    - Display MAC address (STA) on WiFi Configuration Page
+ *    - Avoid falling back to stand-alone mode too early when TCD stops sending
+ *      packets
+ *    - Config files are now only written if actually changed which prolongs
+ *      Flash life-span.
+ *    - Code optimizations and fixes.
  *  2026/01/09 (A10001986) [1.16]
  *    - BTTFN: Fall back to DISCOVER upon NOT_DATA timeout. TCD might have 
  *      got a new IP address.
@@ -522,3 +535,7 @@ void loop()
     audio_loop();
     bttfn_loop();
 }
+
+#if defined(REMOTE_DBG) || defined(REMOTE_DBG_NET)
+#warning "Debug output is enabled. Binary not suitable for release."
+#endif
