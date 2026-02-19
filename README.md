@@ -334,14 +334,15 @@ You can use BTTF-Network and MQTT at the [same time](#receive-commands-from-time
 
 ### TCD remote command reference
 
+
 <table>
    <tr><td>Function</td><td>Code on TCD</td></tr>
     <tr>
-     <td align="left">Toggle "<a href="#-movie-mode-acceleration">movie mode</a>"</td>
+     <td align="left">Toggle "<a href="#-movie-like-acceleration">movie mode</a>"</td>
      <td align="left"<td>7060&#9166;</td>
     </tr>
    <tr>
-     <td align="left">Toggle <a href="#-display-tcd-speed-when-off">display of TCD speed while off</a></td>
+     <td align="left">Toggle <a href="#-display-tcd-speed-when-fake-off">display of TCD speed while off</a></td>
      <td align="left"<td>7061&#9166;</td>
     </tr>
    <tr>
