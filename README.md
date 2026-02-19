@@ -286,7 +286,7 @@ Since manually renaming mp3 files is somewhat cumbersome, the firmware can do th
 
 To start and stop music playback, hold "O.O" for 2 seconds. Briefly pressing "O.O" jumps to the previous song, pressing "RESET" to the next one. (The same can be achieved by entering codes on the TCD's keypad: 7002 = previous song, 7005 = play/stop, 7008 = next song).
 
-By default, the songs are played in order, starting at 000.mp3, followed by 001.mp3 and so on. Holding "RESET" toggles Shuffle mode. The power-up Shuffle mode can be set up in the Config Portal.
+By default, the songs are played in order, starting at 000.mp3, followed by 001.mp3 and so on. Holding "RESET" toggles Shuffle mode. Shuffle mode is saved and persistent accross reboots.
 
 See [here](#buttons-oo-and-reset) and [here](#tcd-remote-command-reference) for a list of controls of the music player.
 
@@ -459,6 +459,10 @@ You can use BTTF-Network and MQTT at the [same time](#receive-commands-from-time
     <tr>
      <td align="left">Reboot the device<sup>2</sup></td>
      <td align="left">7064738&#9166;</td>
+    </tr>
+    <tr>
+     <td align="left">Toggle firmware update signals at power-up</td>
+     <td align="left">7053281&#9166;</td>
     </tr>
      <tr>
      <td align="left">Delete static IP address<br>and WiFi-AP password<sup>2</sup></td>
@@ -764,12 +768,6 @@ If a TCD is connected via BTTFN or MQTT, the Remote visually signals when the TC
 
 When this is checked, the Remote (when fake-powered off) shows whatever the TCD displays on its speedo. For instance, if your TCD is in a car along with a GPS-equipped speedo, the Remote can show the GPS speed.
 
-##### &#9193; Brightness level
-
-This selects brightness level for the LED display. 
-
-This can also be done through buttons ["O.O" and "RESET"](#buttons-oo-and-reset), as well as the TCD (7400-7415); a change through buttons or TCD is saved 10 seconds after it occurred.
-
 #### <ins>Music Player settings</ins>
 
 ##### &#9193; Music folder
@@ -777,12 +775,6 @@ This can also be done through buttons ["O.O" and "RESET"](#buttons-oo-and-reset)
 Selects the current music folder, can be 0 through 9. 
 
 This can also be set/changed through a TCD keypad via BTTFN (7050 - 7059). Such a change will be saved immediately.
-
-##### &#9193; Shuffle at startup
-
-When checked, songs are shuffled when the device is booted. When unchecked, songs will be played in order.
-
-Shuffle mode can be changed at any time through the Remote's ["RESET" button](#buttons-oo-and-reset) or via TCD (7222/7555); however, a change through button or TCD is not saved.
 
 #### <ins>Settings for BTTFN communication</ins>
 
