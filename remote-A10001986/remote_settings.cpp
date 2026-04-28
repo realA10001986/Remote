@@ -106,10 +106,10 @@
 #define DECLARE_D_JSON(x,n) DynamicJsonDocument n(x);
 #endif
 
-#define NUM_AUDIOFILES 24
-#define SND_REQ_VERSION "RM11"
+#define NUM_AUDIOFILES 26
+#define SND_REQ_VERSION "RM12"
 #define AC_FMTV 2
-#define AC_TS   820955
+#define AC_TS   831819
 #define AC_OHSZ (14 + ((NUM_AUDIOFILES+1)*(32+4)))
 
 static const char *CONFN  = "/REMA.bin";
@@ -136,6 +136,7 @@ static struct [[gnu::packed]] {
     uint8_t showUpdAvail   = 1;
     uint8_t updateV        = 0;
     uint8_t updateR        = 0;
+    uint8_t carMode        = 0;
 } secSettings;
 
 // Tertiary settings (SD only)
@@ -229,6 +230,8 @@ static bool checkValidNumParm(char *text, int lowerLim, int upperLim, int setDef
 static bool checkValidNumParmF(char *text, float lowerLim, float upperLim, float setDefault);
 
 static void loadUpdAvail();
+
+static void loadCarMode();
 
 static bool     loadId();
 static uint32_t createId();
@@ -490,6 +493,11 @@ void settings_setup()
     read_mqtt_settings();
     #endif
 
+    // Load car mode
+    if(*settings.cm_ssid) {
+        loadCarMode();
+    }
+
     loadUpdAvail();
     updateConfigPortalUpdValues();
 
@@ -575,6 +583,10 @@ static bool read_settings(File configFile, int cfgReadCount)
                 wd = true;
             }
         }
+
+        wd |= CopyTextParm(json["cmsid"], settings.cm_ssid, sizeof(settings.cm_ssid));
+        wd |= CopyTextParm(json["cmpwd"], settings.cm_pass, sizeof(settings.cm_pass));
+        wd |= CopyTextParm(json["cmbid"], settings.cm_bssid, sizeof(settings.cm_bssid));
 
         wd |= CopyTextParm(json["hostName"], settings.hostName, sizeof(settings.hostName));
         wd |= CopyCheckValidNumParm(json["wifiConRetries"], settings.wifiConRetries, sizeof(settings.wifiConRetries), 1, 10, DEF_WIFI_RETRY);
@@ -682,6 +694,10 @@ void write_settings()
         json["pass"] = (const char *)settings.pass;
         json["bssid"] = (const char *)settings.bssid;
     }
+
+    json["cmsid"] = (const char *)settings.cm_ssid;
+    json["cmpwd"] = (const char *)settings.cm_pass;
+    json["cmbid"] = (const char *)settings.cm_bssid;
 
     json["hostName"] = (const char *)settings.hostName;
     json["wifiConRetries"] = (const char *)settings.wifiConRetries;
@@ -1240,6 +1256,23 @@ void saveAllSecCP()
     secSettings.movieMode = movieMode ? 1 : 0;
     secSettings.displayGPSMode = displayGPSMode ? 1 : 0;
     secSettings.showUpdAvail = showUpdAvail ? 1 : 0;
+    saveSecSettings(true);
+}
+
+/*
+ *  Load/save carMode
+ */
+
+static void loadCarMode()
+{
+    if(haveSecSettings) {
+        carMode = !!secSettings.carMode;
+    }
+}
+
+void saveCarMode()
+{
+    secSettings.carMode = carMode ? 1 : 0;
     saveSecSettings(true);
 }
 

@@ -61,6 +61,44 @@
 #include "power.h"
 #endif
 
+void main_boot();
+void main_boot2();
+void main_setup();
+void main_loop();
+
+void flushDelayedSave();
+void increaseVolume();
+void decreaseVolume();
+
+void disectOldVisMode();
+void updateVisMode();
+
+void setAutoThrottle(bool isOn);
+void setCoast(bool isOn);
+void setMovieMode(bool isOn);
+void setDisplayGPS(bool isOn);
+
+void showWaitSequence();
+void endWaitSequence();
+void showCopyError();
+void showNumber(int num);
+
+void allOff();
+void prepareReboot();
+
+void prepareTT();
+void wakeup();
+
+bool switchMusicFolder(uint8_t nmf, bool isSetup = false);
+void waitAudioDone(bool withBTTFN = false);
+
+void mydelay(unsigned long mydel, bool withBTTFN = false);
+unsigned long millisNonZero();
+
+void addCmdQueue(uint32_t command);
+void bttfn_loop();
+void bttfn_remote_unregister();
+
 extern unsigned long powerupMillis;
 
 extern bool haveNewBoard;
@@ -116,42 +154,8 @@ extern bool     keepCounting;
 
 extern bool blockScan;
 
-void main_boot();
-void main_boot2();
-void main_setup();
-void main_loop();
-
-void flushDelayedSave();
-void increaseVolume();
-void decreaseVolume();
-
-void disectOldVisMode();
-void updateVisMode();
-
-void setAutoThrottle(bool isOn);
-void setCoast(bool isOn);
-void setMovieMode(bool isOn);
-void setDisplayGPS(bool isOn);
-
-void showWaitSequence();
-void endWaitSequence();
-void showCopyError();
-void showNumber(int num);
-
-void allOff();
-void prepareReboot();
-
-void prepareTT();
-void wakeup();
-
-bool switchMusicFolder(uint8_t nmf, bool isSetup = false);
-void waitAudioDone(bool withBTTFN = false);
-
-void mydelay(unsigned long mydel, bool withBTTFN = false);
-unsigned long millisNonZero();
-
-void addCmdQueue(uint32_t command);
-void bttfn_loop();
-void bttfn_remote_unregister();
+extern int     bttfnHaveTCDSSID;
+extern char    TCDSSID[];
+extern uint8_t TCDpwMarker;
 
 #endif

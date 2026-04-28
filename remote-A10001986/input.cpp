@@ -589,10 +589,11 @@ void RemButton::begin(const int pin, const bool activeLow, const bool pullupActi
 
 // debounce: Number of millisec that have to pass by before a click is assumed stable
 // lPress:   Number of millisec that have to pass by before a long press is detected
-void RemButton::setTiming(const int debounceDur, const int lPressDur)
+void RemButton::setTiming(const int debounceDur, const int lPressDur, const int elPressDur)
 {
     _debounceDur = debounceDur;
     _longPressDur = lPressDur;
+    _elongPressDur = elPressDur;
 }
 
 // Register function for press-down event
@@ -617,6 +618,18 @@ void RemButton::attachLongPressStart(void (*newFunction)())
 void RemButton::attachLongPressStop(void (*newFunction)())
 {
     _longPressStopFunc = newFunction;
+}
+
+// Register function for extra long press start event
+void RemButton::attachELongPressStart(void (*newFunction)(void))
+{
+    _elongPressStartFunc = newFunction;
+}
+
+// Register function for extra long press stop event
+void RemButton::attachELongPressStop(void (*newFunction)(void))
+{
+    _elongPressStopFunc = newFunction;
 }
 
 // Check input of the pin and advance the state machine
@@ -665,6 +678,9 @@ void RemButton::scan()
         if(!active) {
             transitionTo(REMBUS_HOLDEND);
             _startTime = now;
+        } else if(_elongPressDur && (waitTime > _elongPressDur)) {
+            if(_elongPressStartFunc) _elongPressStartFunc(); 
+            transitionTo(REMBUS_EHOLD);
         }
         break;
 
@@ -673,6 +689,22 @@ void RemButton::scan()
             transitionTo(_lastState);
         } else if(waitTime >= _debounceDur) {
             if(_longPressStopFunc) _longPressStopFunc();
+            reset();
+        }
+        break;
+
+    case REMBUS_EHOLD:
+        if(!active) {
+            transitionTo(REMBUS_EHOLDEND);
+            _startTime = now;
+        }
+        break;
+
+    case REMBUS_EHOLDEND:
+        if((active) && (waitTime < _debounceDur)) { // de-bounce
+            transitionTo(_lastState);
+        } else if(waitTime >= _debounceDur) {
+            if(_elongPressStopFunc) _elongPressStopFunc();
             reset();
         }
         break;

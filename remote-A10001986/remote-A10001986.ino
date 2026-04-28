@@ -124,9 +124,9 @@
  *  "fake power" of the Remote is in OFF position.
  *  - Put the throttle stick in neutral (center) position, press the Calibration button.
  *    The display will briefly show "CAL" to show acceptance.
- *  - Hold the Calibration button for >= 2 seconds, "UP" will be displayed. Now push
- *    the throttle to the up-most position, and press the Calibration button.
- *    "DN" will be displayed.
+ *  - Hold the Calibration button for >= 2 seconds, a double beep will sound. Release
+ *    the Calibration button, "UP" will be displayed. Now push the throttle to the 
+ *    up-most position, and press the Calibration button. "DN" will be displayed.
  *  - Pull the throttle stick to the bottom-most position, and press the Calibration
  *    button. The display will clear, calibration is finished.
  *  
@@ -138,6 +138,28 @@
 
 /*  Changelog
  *  
+ *  2026/04/27 (A10001986) [1.23]
+ *    **********************************************************************************
+ *    ** If updating from below 1.20, please install 1.20 first to have your          **
+ *    ** settings converted. If 1.20 is skipped, some of your settings (static IP,    **
+ *    ** volume, brightness, calibration data, movie mode, coasting, auto-throttle,   **
+ *    ** display TCD speed while off) will be restored to default values. It suffices **
+ *    ** to install 1.20 and boot once; you can then immediately update to a later    **
+ *    ** version.                                                                     **
+ *    ** https://github.com/realA10001986/Remote/releases/tag/V1.20                   **
+ *    **********************************************************************************
+ *    - Add Car Mode: In addition to existing WiFi network connection settings, you 
+ *      can now pre-configure TCD-AP SSID and password in WiFi Settings and quickly
+ *      switch between normal (home, iPhone...) WiFi connection and Car WiFi connection 
+ *      (through TCD-AP) by holding the Calibration button for 6 seconds (triple-beep)
+ *      or through the Config Portal.
+ *    - Behavior of Calibration button changed: Press is still a brief press. Holding
+ *      the button to initiate Calibration (Fake power off), or to display IP address
+ *      and battery state (Fake power on) means holding it until a double-beep sounds, 
+ *      then the button must be released. (Previously, the function to trigger started
+ *      automatically after 2 seconds, without releasing the button, and no sound was 
+ *      played.)
+ *    - New sound-pack (RM12)
  *  2026/04/19 (A10001986) [1.22]
  *    **********************************************************************************
  *    ** If updating from below 1.20, please install 1.20 first to have your          **

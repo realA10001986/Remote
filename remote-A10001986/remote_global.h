@@ -15,8 +15,8 @@
  ***                          Version Strings                          ***
  *************************************************************************/
 
-#define REMOTE_VERSION "V1.22"              // Do NOT change format.
-#define REMOTE_VERSION_EXTRA "APR192026"
+#define REMOTE_VERSION "V1.23"              // Do NOT change format.
+#define REMOTE_VERSION_EXTRA "APR282026"
 
 /*************************************************************************
  ***             Configuration for hardware/peripherals                ***
@@ -52,7 +52,7 @@
 // Use SPIFFS (if defined) or LittleFS (if undefined; esp32-arduino >= 2.x)
 //#define USE_SPIFFS
 
-//#define HAVE_CRSF
+#define HAVE_CRSF
 
 /*************************************************************************
  ***                               Debug                               ***
@@ -107,7 +107,7 @@
 
 #define BALM_PIN          4       // Battery monitor alarm (CB 1.6; act. low)     (PU on CB 1.6)
 
-//#define DETECT_OUT_PIN    17      // Board version detection output
-//#define DETECT_MIRROR     35      // Board version detection input
+#define DETECT_OUT_PIN    17      // Board version detection output
+#define DETECT_MIRROR     35      // Board version detection input
 
 #endif

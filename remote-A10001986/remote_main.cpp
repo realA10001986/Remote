@@ -286,9 +286,18 @@ static bool isFPBKeyPressed = false;
 static bool isFPBKeyChange = false;
 static bool isBrakeKeyPressed = false;
 static bool isBrakeKeyChange = false;
+static uint32_t calibKeyState = 0;
+#define CK_CHG              0x0001
+#define CK_PRESSED          0x0002
+#define CK_LONGPRESSSTART   0x0004
+#define CK_LONGPRESSEND     0x0008
+#define CK_ELONGPRESSSTART  0x0010
+#define CK_ELONGPRESSEND    0x0020
+/*
 static bool isCalibKeyPressed = false;
 static bool isCalibKeyLongPressed = false;
 static bool isCalibKeyChange = false;
+*/
 static bool isbuttonAKeyPressed = false;
 static bool isbuttonAKeyLongPressed = false;
 static bool isbuttonAKeyChange = false;
@@ -433,6 +442,7 @@ static bool          haveTCDIP = false;
 static IPAddress     bttfnTcdIP;
 static uint8_t       bttfnReqStatus = 0x52; // Request capabilities, status, speed
 static bool          TCDSupportsNOTData = false;
+static bool          TCDSupportsSSID = false;
 static bool          bttfnDataNotEnabled = false;
 static uint32_t      tcdHostNameHash = 0;
 static byte          BTTFMCBuf[BTTF_PACKET_SIZE];
@@ -442,6 +452,9 @@ static uint32_t      bttfnTCDDataSeqCnt = 0;
 static uint32_t      bttfnSessionID = 0;
 static unsigned long bttfnCurrLatency = 0, bttfnPacketSentNow = 0;
 static int16_t       tcdCurrSpeed = -1;
+int                  bttfnHaveTCDSSID = 0;
+char                 TCDSSID[8] = { 0 };
+uint8_t              TCDpwMarker = 0;
 //static bool          tcdSpdIsRotEnc = false;
 //static bool          tcdSpdIsRemote = false;
 static int16_t       currSpeedOldGPS = -2;
@@ -496,6 +509,9 @@ static void triggerSaveVis();
 
 static void condPLEDaBLvl(bool sLED, bool sLvl);
 
+static void toggleCarMode();
+static void cmChanged();
+
 static void timeTravel(bool networkTriggered, uint16_t P0Dur = P0_DUR, uint16_t P1Dur = P1_DUR);
 static void showDot();
 
@@ -519,7 +535,10 @@ static void brakeKeyPressed();
 static void brakeKeyLongPressStop();
 static void calibKeyPressed();
 static void calibKeyPressStop();
-static void calibKeyLongPressed();
+static void calibKeyLongPressStart();
+static void calibKeyLongPressEnd();
+static void calibKeyELongPressStart();
+static void calibKeyELongPressEnd();
 static void buttonAKeyPressed();
 static void buttonAKeyPressStop();
 static void buttonAKeyLongPressed();
@@ -867,14 +886,16 @@ void main_setup()
     brake.scan();
 
     calib.begin(CALIBB_IO_PIN, true, true);        // active low, pullup
-    calib.setTiming(50, 2000);
+    calib.setTiming(50, 2000, 6000);
     calib.attachPressDown(calibKeyPressed);
     calib.attachPressEnd(calibKeyPressStop);
-    calib.attachLongPressStart(calibKeyLongPressed);
-    calib.attachLongPressStop(calibKeyPressed);
+    calib.attachLongPressStart(calibKeyLongPressStart);
+    calib.attachLongPressStop(calibKeyLongPressEnd);
+    calib.attachELongPressStart(calibKeyELongPressStart);
+    calib.attachELongPressStop(calibKeyELongPressEnd);
 
     // Button A ("O.O")
-    buttonA.begin(BUTA_IO_PIN, true, true);            // active low, pullup
+    buttonA.begin(BUTA_IO_PIN, true, true);        // active low, pullup
     buttonA.setTiming(50, 2000);
     buttonA.attachPressDown(buttonAKeyPressed);
     buttonA.attachPressEnd(buttonAKeyPressStop);
@@ -1442,8 +1463,8 @@ void main_loop()
     //        Short press: Reset speed to 0
     // .      Long press:  First time: Display IP address, subsequently SOC and TTE/TTF alternately
     calib.scan();
-    if(isCalibKeyChange) {
-        isCalibKeyChange = false;
+    if(calibKeyState & CK_CHG) {
+        calibKeyState &= ~CK_CHG;
         if(!FPBUnitIsOn) {
             if(battWarn) {
                 remdisplay.setText("BAT");
@@ -1451,8 +1472,8 @@ void main_loop()
                 remdisplay.on();
                 offDisplayTimer = true;
                 offDisplayNow = millis();
-                isCalibKeyPressed = isCalibKeyLongPressed = false;
-            } else if(isCalibKeyPressed) {
+                calibKeyState = 0;
+            } else if(calibKeyState & CK_PRESSED) {
                 if(calibMode) {
                     if(calibUp) {
                         if(useRotEnc && rotEnc.setMaxStepsUp(0)) {
@@ -1500,7 +1521,9 @@ void main_loop()
                     }
                     condPLEDaBLvl(false, false);
                 }
-            } else if(isCalibKeyLongPressed) {
+            } else if(calibKeyState & CK_LONGPRESSSTART) {
+                play_file("/buttonl.mp3", PA_INTRMUS|PA_ALLOWSD, 1.0f);
+            } else if(calibKeyState & CK_LONGPRESSEND) {
                 if(calibMode) {
                     calibMode = false;
                     remdisplay.clearBuf();
@@ -1522,10 +1545,14 @@ void main_loop()
                     remdisplay.on();
                     calibUp = true;
                 }
+            } else if(calibKeyState & CK_ELONGPRESSSTART) {
+                play_file("/buttonel.mp3", PA_INTRMUS|PA_ALLOWSD, 1.0f);
+            } else if(calibKeyState & CK_ELONGPRESSEND) {
+                toggleCarMode();
             }
         } else {
             if(!tcdIsInP0 && !TTrunning) {
-                if(isCalibKeyPressed) {
+                if(calibKeyState & CK_PRESSED) {
                     if(!throttlePos) {
                         currSpeedF = 0;
                         currSpeed = 0;
@@ -1534,7 +1561,9 @@ void main_loop()
                         bttfn_remote_send_combined(powerState, brakeState, currSpeed);
                         doForceDispUpd = true;
                     }
-                } else if(isCalibKeyLongPressed) {
+                } else if(calibKeyState & CK_LONGPRESSSTART) {
+                    play_file("/buttonl.mp3", PA_INTRMUS|PA_ALLOWSD, 1.0f);
+                } else if(calibKeyState & CK_LONGPRESSEND) {
                     flushDelayedSave();
                     #ifdef HAVE_PM
                     if(calibIP) {
@@ -1553,6 +1582,10 @@ void main_loop()
                     #endif
                     doForceDispUpd = true;
                     triggerTTonThrottle = 0;
+                } else if(calibKeyState & CK_ELONGPRESSSTART) {
+                    play_file("/buttonel.mp3", PA_INTRMUS|PA_ALLOWSD, 1.0f);
+                } else if(calibKeyState & CK_ELONGPRESSEND) {
+                    toggleCarMode();
                 }
             }
         }
@@ -2299,6 +2332,31 @@ static void condPLEDaBLvl(bool sLED, bool sLvl)
     }
 }
 
+static void toggleCarMode()
+{
+    bool ocm = carMode;
+    carMode = !carMode;
+    if(!*settings.cm_ssid) carMode = false;
+    if(ocm != carMode) {
+        cmChanged();
+    }
+}
+
+static void cmChanged()
+{
+    saveCarMode();
+    remdisplay.setText("CAR");
+    remdisplay.show();
+    remdisplay.on();
+    delay(500);
+    remdisplay.setText(carMode ? "ON " : "OFF");
+    remdisplay.show();
+    delay(500);
+    prepareReboot();
+    delay(500);
+    esp_restart();
+}
+
 /*
  * Time travel
  * 
@@ -2513,20 +2571,20 @@ static void execute_remote_command()
         // All here allowed when we're off
 
         switch(command) {
-        case 60:                              // 7060  enable/disable Movie-like accel
+        case 60:                                      // 7060  enable/disable Movie-like accel
             toggleMovieMode();
             break;
-        case 61:                              // 7061  enable/disable "display TCD speed while fake-off"
+        case 61:                                      // 7061  enable/disable "display TCD speed while fake-off"
             toggleDisplayGPS();
             triggerCompleteUpdate = true;
             break;
-        case 62:                              // 7062  enable/disable autoThrottle
+        case 62:                                      // 7062  enable/disable autoThrottle
             toggleAutoThrottle();
             break;
-        case 63:                              // 7063  enable/disable coasting
+        case 63:                                      // 7063  enable/disable coasting
             toggleCoast();
             break;
-        case 90:                              // 7090: Display IP address
+        case 90:                                      // 7090: Display IP address
             flushDelayedSave();
             remdisplay.on();
             display_ip();
@@ -2538,9 +2596,9 @@ static void execute_remote_command()
                 currSpeedOldGPS = -2;   
             }
             break;
-        case 91:                              // 7091: Display battery SOC
-        case 92:                              // 7092: Display battery TTE
-        case 93:                              // 7093: Display battery voltage
+        case 91:                                      // 7091: Display battery SOC
+        case 92:                                      // 7092: Display battery TTE
+        case 93:                                      // 7093: Display battery voltage
             #ifdef HAVE_PM
             if(havePwrMon) {
                 flushDelayedSave();
@@ -2556,11 +2614,11 @@ static void execute_remote_command()
             }
             #endif
             break;
-        case 96:                              // 7096: Toggle "Remote is power master"
+        case 96:                                      // 7096: Toggle "Remote is power master"
             togglePwrMst();
             break;
         default:
-            if(command >= 50 && command <= 59) {   // 7050-7059: Set music folder number
+            if(command >= 50 && command <= 59) {      // 7050-7059: Set music folder number
                 if(haveSD) {
                     switchMusicFolder((uint8_t)command - 50);
                 }
@@ -2618,6 +2676,20 @@ static void execute_remote_command()
             case 888:                                 // 7888 go to song #0
                 if(haveMusic) {
                     mp_gotonum(0, mpActive);
+                }
+                break;
+            case 990:                                 // 7990/7991: Disable/enable car mode
+            case 991:
+                if(!injected) {
+                    bool ocm = carMode;          
+                    if(command == 991) {
+                        if(*settings.cm_ssid) carMode = true;
+                    } else {
+                        carMode = false;
+                    }
+                    if(ocm != carMode) {
+                        cmChanged();
+                    }
                 }
                 break;
             }
@@ -2973,22 +3045,32 @@ static void brakeKeyLongPressStop()
 
 static void calibKeyPressed()
 {
-    isCalibKeyPressed = false;
-    isCalibKeyLongPressed = false;
+    calibKeyState = 0;
 }
 
 static void calibKeyPressStop()
 {
-    isCalibKeyPressed = true;
-    isCalibKeyLongPressed = false;
-    isCalibKeyChange = true;
+    calibKeyState = CK_PRESSED|CK_CHG;
 }
 
-static void calibKeyLongPressed()
+static void calibKeyLongPressStart()
 {
-    isCalibKeyPressed = false;
-    isCalibKeyLongPressed = true;
-    isCalibKeyChange = true;
+    calibKeyState = CK_LONGPRESSSTART|CK_CHG;
+}
+
+static void calibKeyLongPressEnd()
+{
+    calibKeyState = CK_LONGPRESSEND|CK_CHG;
+}
+
+static void calibKeyELongPressStart()
+{
+    calibKeyState = CK_ELONGPRESSSTART|CK_CHG;
+}
+
+static void calibKeyELongPressEnd()
+{
+    calibKeyState = CK_ELONGPRESSEND|CK_CHG;
 }
 
 static void buttonAKeyPressed()
@@ -3242,6 +3324,7 @@ static void bttfn_eval_response(uint8_t *buf, bool checkCaps)
         }
         if(buf[31] & 0x10) {
             TCDSupportsNOTData = true;
+            TCDSupportsSSID = !!(buf[31] & 0x40);
         }
     }
     
@@ -3262,6 +3345,13 @@ static void bttfn_eval_response(uint8_t *buf, bool checkCaps)
         //tcdSpdIsRotEnc = !!(buf[26] & 0x80); 
         //tcdSpdIsRemote = !!(buf[26] & 0x20);
     }
+
+    if(!bttfnHaveTCDSSID && !checkCaps && TCDSupportsSSID) {
+        bttfnHaveTCDSSID = 1;
+        memcpy((void *)TCDSSID, (void *)&buf[41], 6);
+        TCDSSID[6] = buf[18];
+        TCDpwMarker = buf[19] & 0x01;
+    }
 }
 
 static void handle_tcd_notification(uint8_t *buf)
@@ -3281,6 +3371,7 @@ static void handle_tcd_notification(uint8_t *buf)
             seqCnt = GET32(buf, 27);
             if(bttfnSessionID && (bttfnSessionID != seqCnt)) {
                 bttfnTCDDataSeqCnt = 1;
+                bttfnHaveTCDSSID = 0;
             }
             bttfnSessionID = seqCnt;
             seqCnt = GET32(buf, 6);
@@ -3756,9 +3847,9 @@ void bttfn_loop()
             bttfnDataNotEnabled = false;
             bttfnTCDDataSeqCnt = 1;
             // Re-do DISCOVER, TCD might have got new IP address
-            if(tcdHostNameHash) {
-                haveTCDIP = false;
-            }
+            if(tcdHostNameHash) haveTCDIP = false;
+            // Don't assume TCD comes back with same SSID/pwMarker
+            bttfnHaveTCDSSID = 0;
             // Avoid immediate return to stand-alone in main_loop()
             lastBTTFNpacket = now;
             #ifdef REMOTE_DBG_NET

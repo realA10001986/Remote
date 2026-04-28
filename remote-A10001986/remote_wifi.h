@@ -55,17 +55,7 @@
 #ifndef _REMOTE_WIFI_H
 #define _REMOTE_WIFI_H
 
-extern bool wifiSetupDone;
-extern bool wifiIsOff;
-extern bool wifiAPIsOff;
-extern bool wifiInAPMode;
-
-#ifdef REMOTE_HAVEMQTT
-extern bool useMQTT;
-#endif
-
 void wifi_setup();
-void wifi_setup2();
 void wifi_loop();
 void wifiOn(unsigned long newDelay = 0);
 bool wifiNeedReConnect(bool& blocks);
@@ -84,6 +74,17 @@ bool checkIPConfig();
 
 #ifdef REMOTE_HAVEMQTT
 void mqttPublish(const char *topic, const char *pl, unsigned int len);
+#endif
+
+extern bool wifiSetupDone;
+extern bool wifiIsOff;
+extern bool wifiAPIsOff;
+extern bool wifiInAPMode;
+
+extern bool carMode;
+
+#ifdef REMOTE_HAVEMQTT
+extern bool useMQTT;
 #endif
 
 #endif

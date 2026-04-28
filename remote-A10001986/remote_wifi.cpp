@@ -105,6 +105,12 @@ static const char *acul_errs[]  = {
     "Extraneous .bin file"
 };
 
+static const char tcdList[] = "<datalist id='tcda'><option value='TCD-AP%s'></option></datalist><datalist id='hnl'><option value='dtmremote'></option></datalist>";
+
+static const char tcdSSIDp[] = "<div style='margin:0 0 10px 0;padding:0;font-size:80%%'>SSID of currently connected TCD is <b>TCD-AP%s</b> (%s password)</div>";
+static const char tcdAPPW1[] = "no";
+static const char tcdAPPW2[] = "with";
+
 static const char *apChannelCustHTMLSrc[14] = {
     "'>WiFi channel",
     "apchnl",
@@ -243,6 +249,8 @@ static const char *cDynPowerCustHTMLSrc[4] = {
 };
 #endif
 
+static const char *wmBuildTCDAPList(const char *dest, int op);
+static const char *wmBuildTCDSSID(const char *dest, int op);
 static const char *wmBuildApChnl(const char *dest, int op);
 static const char *wmBuildBestApChnl(const char *dest, int op);
 
@@ -300,12 +308,22 @@ static const char rad99[] = "</fieldset></div>";
 
 // WiFi Configuration
 
+WiFiManagerParameter custom_asel(wmBuildTCDAPList);
+
+WiFiManagerParameter custom_sectstart_cm("Car mode settings", WFM_SECTS_HEAD|WFM_HL);
+WiFiManagerParameter custom_cmhint("<div style='margin:0 0 10px 0;padding:0;font-size:80%;white-space:break-spaces;'>In Car mode, the device connects to the TCD's access point instead of the WiFi network configured above.</div>");
+WiFiManagerParameter custom_ssidcm("ssidcm", "Network name (SSID) of TCD-AP", settings.cm_ssid, 13, "pattern='[A-Za-z0-9\\-]+' placeholder='Example: TCD-AP' list='tcda'");
+WiFiManagerParameter custom_passcm("passcm", "Password for TCD-AP", settings.cm_pass, 8, "minlength='8' pattern='[A-Za-z0-9\\-]+'");
+WiFiManagerParameter custom_tcdssid(wmBuildTCDSSID);
+WiFiManagerParameter custom_bssidcm("bsidcm", "TCD-AP BSSID (optional)", settings.cm_bssid, 17, "pattern='^([0-9A-Fa-f]{2}[:]){5}([0-9A-Fa-f]{2})$' placeholder='XX:XX:XX:XX:XX:XX'");
+WiFiManagerParameter custom_ecm("ecm", "Enable Car Mode", settings.ecmKludge, "", WFM_LABEL_AFTER|WFM_IS_CHKBOX);
+
 #if defined(REMOTE_MDNS) || defined(WM_MDNS)
 #define HNTEXT "Hostname<br><span>The Config Portal is accessible at http://<i>hostname</i>.local<br>(Valid characters: a-z/0-9/-)</span>"
 #else
 #define HNTEXT "Hostname<br><span>(Valid characters: a-z/0-9/-)</span>"
 #endif
-WiFiManagerParameter custom_hostName("hostname", HNTEXT, settings.hostName, 31, "pattern='[A-Za-z0-9\\-]+' placeholder='Example: dtmremote'", WFM_LABEL_BEFORE|WFM_SECTS_HEAD);
+WiFiManagerParameter custom_hostName("hostname", HNTEXT, settings.hostName, 31, "pattern='[A-Za-z0-9\\-]+' placeholder='Example: dtmremote' list='hnl'", WFM_LABEL_BEFORE|WFM_SECTS);
 
 WiFiManagerParameter custom_sectstart_wifi("WiFi connection: Other settings", WFM_SECTS|WFM_HL);
 WiFiManagerParameter custom_wifiConRetries("wifiret", "Connection attempts (1-10)", settings.wifiConRetries, 2, "type='number' min='1' max='10'");
@@ -321,6 +339,8 @@ WiFiManagerParameter custom_reactAP("reactAP", "Re-enable WiFi on Fake Power", s
 
 // Settings
 
+WiFiManagerParameter custom_hsel("<datalist id='tcdh'><option value='timecircuits'></option></datalist>");
+
 WiFiManagerParameter custom_at("at", "Auto throttle<br><span>Accleration will continue on trottle release. Has precedence over Coasting.</span>", settings.autoThrottle, "class='mt5' style='margin-bottom:5px;'", WFM_LABEL_AFTER|WFM_IS_CHKBOX|WFM_SECTS_HEAD);
 WiFiManagerParameter custom_coast("cst", "Coasting when throttle in neutral", settings.coast, "", WFM_LABEL_AFTER|WFM_IS_CHKBOX);
 WiFiManagerParameter custom_sStrict("sStrict", "Movie-like acceleration<br><span>Check to set the acceleration pace to what is shown in the movie. This slows down acceleration at higher speeds.</span>", settings.movieMode, "class='mb0'", WFM_LABEL_AFTER|WFM_IS_CHKBOX);
@@ -332,7 +352,7 @@ WiFiManagerParameter custom_sectstart_mp("MusicPlayer", WFM_SECTS|WFM_HL);
 WiFiManagerParameter custom_musicFolder("mfol", "Music folder (0-9)", settings.musicFolder, 1, "type='number' min='0' max='9'");
 
 WiFiManagerParameter custom_sectstart_nw("Wireless communication (BTTF-Network)", WFM_SECTS|WFM_HL);
-WiFiManagerParameter custom_tcdIP("tcdIP", "IP address or hostname of TCD", settings.tcdIP, 31, "pattern='(^((25[0-5]|(2[0-4]|1\\d|[1-9]|)\\d)\\.?\\b){4}$)|([A-Za-z0-9\\-]+)' placeholder='Example: timecircuits'");
+WiFiManagerParameter custom_tcdIP("tcdIP", "Hostname or IP address of TCD", settings.tcdIP, 31, "pattern='(^((25[0-5]|(2[0-4]|1\\d|[1-9]|)\\d)\\.?\\b){4}$)|([A-Za-z0-9\\-]+)' placeholder='Example: timecircuits' list='tcdh'");
 WiFiManagerParameter custom_pwrMst("pwM", "Remote Fake-Power controls TCD Fake-Power<br><span>Remote Fake-Power will overrule TFC switch and control TCD Fake-Power. Can be toggled by O.O/RESET if so configured below.</span>", settings.pwrMst, "class='mb0'", WFM_LABEL_AFTER|WFM_IS_CHKBOX);
 WiFiManagerParameter custom_refill(wmBuildRefill);
 
@@ -442,30 +462,32 @@ static const char apName[] = "REM-AP";
 
 static const char myTitle[] = AA_TITLE;
 static const char myHead[]  = "<link rel='icon' type='image/png' href='data:image/png;base64," AA_ICON "'><script>window.onload=function(){xxx='" AA_TITLE "';yyy='?';wr=ge('wrap');if(wr){aa=ge('h3');if(aa){yyy=aa.innerHTML;aa.remove();dlel('h1')}zz=(Math.random()>0.8);dd=document.createElement('div');dd.classList.add('tpm0');dd.innerHTML='<div class=\"tpm\" onClick=\"shsp(1);window.location=\\'/\\'\"><div class=\"tpm2\"><img id=\"spi\" src=\"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEAAAABAAQMAAACQp+OdAAAABlBMVEUAAABKnW0vhlhrAAAAAXRSTlMAQObYZgAAA'+(zz?'GBJREFUKM990aEVgCAABmF9BiIjsIIbsJYNRmMURiASePwSDPD0vPT12347GRejIfaOOIQwigSrRHDKBK9CCKoEqQF2qQMOSQAzEL9hB9ICNyMv8DPKgjCjLtAD+AV4dQM7O4VX9m1RYAAAAABJRU5ErkJggg==':'HtJREFUKM990bENwyAUBuFnuXDpNh0rZIBIrJUqMBqjMAIlBeIihQIF/fZVX39229PscYG32esCzeyjsXUzNHZsI0ocxJ0kcZIOsoQjnxQJT3FUiUD1NAloga6wQQd+4B/7QBQ4BpLAOZAn3IIy4RfUibCgTTDq+peG6AvsL/jPTu1L9wAAAABJRU5ErkJggg==')+'\" class=\"tpm3\"></div><H1 class=\"tpmh1\"'+(zz?' style=\"margin-left:1.4em\"':'')+'>'+xxx+'</H1>'+'<H3 class=\"tpmh3\"'+(zz?' style=\"padding-left:5em\"':'')+'>'+yyy+'</div></div>';wr.insertBefore(dd,wr.firstChild);wr.style.position='relative'}var lc=ge('lc');if(lc){lc.style.transform='rotate('+(358+[0,1,3,4,5][Math.floor(Math.random()*4)])+'deg)'}}</script><style>H1{font-family:Bahnschrift,-apple-system,'Segoe UI Semibold',Roboto,'Helvetica Neue',Arial,Verdana,sans-serif;margin:0;text-align:center;}H3{margin:0 0 5px 0;text-align:center;}input{border:thin inset}em > small{display:inline}form{margin-block-end:0;}.tpm{background-color:#fff;cursor:pointer;border:1px solid black;border-radius:5px;padding:0 0 0 0px;min-width:18em;}.tpm2{position:absolute;top:-0.7em;z-index:130;left:0.7em;}.tpm3{width:4em;height:4em;}.tpmh1{font-variant-caps:all-small-caps;font-weight:normal;margin-left:2.2em;overflow:clip;}.tpmh3{background:#000;font-size:0.6em;color:#ffa;padding-left:7.2em;margin-left:0.5em;margin-right:0.5em;border-radius:5px;overflow:hidden;white-space:nowrap}.tpm0{position:relative;width:20em;padding:5px 0px 5px 0px;margin:0 auto 0 auto;}.cmp0{margin:0;padding:0;}.sel0{font-size:90%;width:auto;margin-left:10px;vertical-align:baseline;}.mt5{margin-top:5px!important}.mb10{margin-bottom:10px!important}.mb0{margin-bottom:0px!important}.mb15{margin-bottom:15px!important}.ml20{margin-left:20px}.ss>label span{font-size:80%}</style>";
-static const char* myCustMenu = "<a href='https://circuitsetup.us' target=_blank><img style='display:block;margin:10px auto 5px auto;' src='data:image/png;base64,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'></a><div style='font-size:0.75em;line-height:1.2em;font-weight:bold;text-align:center;text-transform:uppercase'>" UNI_VERSION " (" UNI_VERSION_EXTRA ")<br>Powered by <a href='https://out-a-ti.me' target=_blank>A10001986</a> <a href='https://" WEBHOME ".out-a-ti.me' target=_blank>[Home/Updates]</a></div>";
+static const char *myCustMenu = "<a href='https://circuitsetup.us' target=_blank><img style='display:block;margin:10px auto 5px auto;' src='data:image/png;base64,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'></a><div style='font-size:0.75em;line-height:1.2em;font-weight:bold;text-align:center;text-transform:uppercase'>" UNI_VERSION " (" UNI_VERSION_EXTRA ")<br>Powered by <a href='https://out-a-ti.me' target=_blank>A10001986</a> <a href='https://" WEBHOME ".out-a-ti.me' target=_blank>[Home/Updates]</a></div>";
 static const char r_link[]  = WEBHOME "r.out-a-ti.me";
 
 static char newversion[8];
 static unsigned long lastUpdateCheck = 0;
 static unsigned long lastUpdateLiveCheck = 0;
 
-#define WLA_IP      1
-#define WLA_DEL_IP  2
-#define WLA_WIFI    4
-#define WLA_SET1    8
-#define WLA_SET1_B      3
-#define WLA_SET2    16
-#define WLA_SET2_B      4
-#define WLA_SET3    32
-#define WLA_SET3_B      5
-#define WLA_SET     (WLA_WIFI|WLA_SET1|WLA_SET2|WLA_SET3)
-#define WLA_ANY     (WLA_IP|WLA_DEL_IP|WLA_SET)
-static uint32_t     wifiLoopSaveAction = 0;
+#define WLA_IP           1
+#define WLA_DEL_IP       2
+#define WLA_WIFI         4
+#define WLA_SET1         8
+#define WLA_SET1_B          3
+#define WLA_SET2        16
+#define WLA_SET2_B          4
+#define WLA_SET3        32
+#define WLA_SET3_B          5
+#define WLA_SET_CM      64
+#define WLA_SET_CM_ON  128
+#define WLA_SET        (WLA_WIFI|WLA_SET1|WLA_SET2|WLA_SET3)
+#define WLA_ANY        (WLA_IP|WLA_DEL_IP|WLA_SET)
+static uint32_t wifiLoopSaveAction = 0;
 
-// Did user configure a WiFi network to connect to?
-bool wifiHaveSTAConf = false;
-static bool connectedToTCDAP = false;
-static bool stayInAPMode = false;
+bool carMode                  = false;
+static bool wifiHaveSTAConf   = false;
+static bool connectedToTCDAP  = false;
+static bool stayInAPMode      = false;  // CRSF only
 
 // WiFi power management in AP mode
 bool          wifiInAPMode = false;
@@ -526,6 +548,7 @@ static void postUpdateCallback(bool);
 static void wifiDelayReplacement(unsigned int mydel);
 static void gpCallback(int);
 static bool preWiFiScanCallback();
+static void setCMCallback(bool enable);
 
 static void updateConfigPortalValues();
 
@@ -533,7 +556,8 @@ static IPAddress stringToIp(char *str);
 
 static void getServerParam(const char *name, char *destBuf, size_t length, int minval, int maxval, int defaultVal);
 static bool myisspace(char mychar);
-static char* strcpytrim(char* destination, const char* source, bool doFilter = false);
+static char *strcpytrim(char* destination, const char* source, bool doFilter = false);
+static char *strcpytrimMAC(char* destination, const char* source);
 static void mystrcpy(char *sv, WiFiManagerParameter *el);
 static void mystrcpyWiFiDelay(char *sv, WiFiManagerParameter *el);
 static void evalCB(char *sv, WiFiManagerParameter *el);
@@ -564,6 +588,16 @@ void wifi_setup()
 
     WiFiManagerParameter *wifiParmArray[] = {
 
+      &custom_asel,
+      
+      &custom_sectstart_cm,
+      &custom_cmhint,
+      &custom_ssidcm,
+      &custom_passcm,
+      &custom_tcdssid,
+      &custom_bssidcm,
+      &custom_ecm,
+      
       &custom_hostName,
 
       &custom_sectstart_wifi,
@@ -583,6 +617,8 @@ void wifi_setup()
 
     WiFiManagerParameter *parmArray[] = {
 
+      &custom_hsel,
+      
       &custom_at,             // 6
       &custom_coast,
       &custom_sStrict,
@@ -665,6 +701,16 @@ void wifi_setup()
     };
     #endif
 
+    // No carMode if no CM SSID
+    if(!*settings.cm_ssid) carMode = false;
+
+    // No carMode if in CRSF-stayInAPMode mode
+    #ifdef HAVE_CRSF
+    if(haveNewBoard && opModeCRSF) {
+        if((stayInAPMode = !evalBool(settings.crsfap))) carMode = false;
+    }
+    #endif
+
     // Transition from NVS-saved data to own management:
     if(!settings.ssid[0] && settings.ssid[1] == 'X') {
         
@@ -697,6 +743,9 @@ void wifi_setup()
 
     // Hack version number into WiFiManager main page
     wm.setCustomMenuHTML(myCustMenu);
+
+    wm.setCCarMode(carMode);
+    wm.setCCarModeCallback(setCMCallback);
 
     temp = atoi(settings.apChnl);
     if(temp < 0) temp = 0;
@@ -776,20 +825,18 @@ void wifi_setup()
     useMQTT = evalBool(settings.useMQTT);
     #endif
 
-    #ifdef HAVE_CRSF
-    stayInAPMode = (haveNewBoard && opModeCRSF && !evalBool(settings.crsfap));
-    #endif
+    // stayInAPMode means carMode=false, wifiHaveSTAConf=false
 
     if(!stayInAPMode) {
       
-        wifiHaveSTAConf = (settings.ssid[0] != 0);
+        wifiHaveSTAConf = carMode ? true : (settings.ssid[0] != 0);
     
         // See if we have a configured WiFi network to connect to.
         // If we detect "TCD-AP" as the SSID, we make sure that we retry
         // at least 2 times so we have a chance to catch the TCD's AP if 
         // both are powered up at the same time.
         if(wifiHaveSTAConf) {
-            if(!strncmp("TCD-AP", settings.ssid, 6)) {
+            if(carMode || !strncmp("TCD-AP", settings.ssid, 6)) {
                 if(wm.getConnectRetries() < 2) {
                     wm.setConnectRetries(2);
                 }
@@ -818,7 +865,7 @@ void wifi_setup()
     
     // Configure static IP
     if(loadIpSettings()) {
-        if(checkIPConfig()) {
+        if(checkIPConfig() && !carMode) {
             IPAddress ip = stringToIp(ipsettings.ip);
             IPAddress gw = stringToIp(ipsettings.gateway);
             IPAddress sn = stringToIp(ipsettings.netmask);
@@ -826,12 +873,7 @@ void wifi_setup()
             wm.setSTAStaticIPConfig(ip, gw, sn, dns);
         }
     }
-    
-    wifi_setup2();
-}
 
-void wifi_setup2()
-{
     // Connect, but defer starting the CP
     wifiConnect(stayInAPMode, true);
 
@@ -1000,6 +1042,24 @@ void wifi_loop()
         }
     }
 
+    if(wifiLoopSaveAction & WLA_SET_CM) {
+        bool ocm = carMode;
+        carMode = !!(wifiLoopSaveAction & WLA_SET_CM_ON);
+        if(!*settings.cm_ssid) carMode = false;
+        if(carMode != ocm) {
+            mp_stop();
+            stopAudio();
+            saveCarMode();
+            if(!(wifiLoopSaveAction & WLA_SET)) {
+                prepareReboot();
+                delay(500);
+                esp_restart();
+            }
+        }
+        wifiLoopSaveAction &= ~(WLA_SET_CM|WLA_SET_CM_ON);
+    }
+
+
     if(wifiLoopSaveAction & WLA_SET) {
 
         int temp;
@@ -1033,6 +1093,10 @@ void wifi_loop()
             }
 
             // ssid, pass copied to settings in saveWiFiCallback()
+
+            strcpytrim(settings.cm_ssid, custom_ssidcm.getValue(), true);
+            strcpytrim(settings.cm_pass, custom_passcm.getValue(), true);
+            strcpytrimMAC(settings.cm_bssid, custom_bssidcm.getValue());
 
             strcpytrim(settings.hostName, custom_hostName.getValue(), true);
             if(!*settings.hostName) {
@@ -1238,22 +1302,32 @@ void wifi_loop()
 
 static void wifiConnect(bool APonly, bool deferConfigPortal)
 {
-    bool doOnlyAP = false;
     char realAPName[16];
+    char *mssid, *mpass, *mbssid;
+    
+    if(carMode) {
+        mssid = settings.cm_ssid;
+        mpass = settings.cm_pass;
+        mbssid = settings.cm_bssid;
+    } else {
+        mssid = settings.ssid;
+        mpass = settings.pass;
+        mbssid = settings.bssid;
+    }
 
     strcpy(realAPName, apName);
     if(settings.systemID[0]) {
         strcat(realAPName, settings.systemID);
     }
 
-    if(APonly || !settings.ssid[0]) {
+    // If APonly is true (CRSF), carMode is always false
+    if(APonly) {
         wm.startAPModeAndPortal(realAPName, settings.appw, settings.ssid, settings.pass);
-        doOnlyAP = true;
     }
     
     // Connect using saved credentials if they exist
     // If connection fails it starts an access point with the specified name
-    if(!doOnlyAP && wm.wifiConnect(settings.ssid, settings.pass, settings.bssid, realAPName, settings.appw)) {
+    if(!APonly && wm.wifiConnect(mssid, mpass, mbssid, realAPName, settings.appw)) {
         #ifdef REMOTE_DBG
         Serial.println("WiFi connected");
         #endif
@@ -1457,7 +1531,7 @@ void wifiOn(unsigned long newDelay)
             }
         }
 
-        if(millis() - lastUpdateLiveCheck > 6*60*60*1000) {
+        if(!lastUpdateLiveCheck || (millis() - lastUpdateLiveCheck > 6*60*60*1000)) {
             checkForUpdate();
         }
 
@@ -1528,18 +1602,20 @@ static void checkForUpdate()
 
     lastUpdateCheck = millis();
 
-    if(sscanf(CURRVERSION, "V%d.%d", &cver, &crev) != 2) {
-        lastUpdateLiveCheck = millis();
+    if(connectedToTCDAP || sscanf(CURRVERSION, "V%d.%d", &cver, &crev) != 2) {
+        lastUpdateLiveCheck = millisNonZero();
         return;
     }
     
     if(WiFi.status() == WL_CONNECTED) {
         IPAddress remote_addr;
         if(WiFi.hostByName(WEBHOME "v.out-a-ti.me", remote_addr)) {
-            uver = remote_addr[0]; urev = remote_addr[1];
-            if(uver) saveUpdVers(uver, urev);
+            if(remote_addr[0] + remote_addr[1] == remote_addr[3]) {
+                uver = remote_addr[0]; urev = remote_addr[1];
+                if(uver) saveUpdVers(uver, urev);
+            }
         }
-        lastUpdateLiveCheck = millis();
+        lastUpdateLiveCheck = millisNonZero();
     } else {
         loadUpdVers(uver, urev);
     }
@@ -1787,9 +1863,20 @@ void gpCallback(int reason)
     }
 }
 
+static void setCMCallback(bool enable)
+{
+    wifiLoopSaveAction |= WLA_SET_CM;
+    if(enable) wifiLoopSaveAction |= WLA_SET_CM_ON;
+    else       wifiLoopSaveAction &= ~WLA_SET_CM_ON;
+}
+
 static void updateConfigPortalValues()
 {
     // Make sure the settings form has the correct values
+
+    custom_ssidcm.setValue(settings.cm_ssid);
+    custom_passcm.setValue(settings.cm_pass);
+    custom_bssidcm.setValue(settings.cm_bssid);
 
     custom_hostName.setValue(settings.hostName);
     custom_wifiConRetries.setValue(settings.wifiConRetries);
@@ -2019,12 +2106,51 @@ static const char *wmBuildRadioButtons(const char *dest, int op, const char **th
     return str;
 }
 
-#ifdef HAVE_PM
-static const char *wmBuildBatType(const char *dest, int op)
+static const char *wmBuildTCDAPList(const char *dest, int op)
 {
-    return wmBuildSelect(dest, op, batTypeHTMLSrc, 7, settings.batType, false);
+    if(op == WM_CP_DESTROY) {
+        if(dest) free((void *)dest);
+        return NULL;
+    }
+
+    unsigned int l = STRLEN(tcdList) + 4 + (bttfnHaveTCDSSID ? strlen(TCDSSID) : 0);
+
+    if(op == WM_CP_LEN) {
+        wmLenBuf = l;
+        return (const char *)&wmLenBuf;
+    }
+
+    char *str = (char *)malloc(l);
+
+    sprintf(str, tcdList, bttfnHaveTCDSSID ? TCDSSID : "");
+
+    return str;
 }
-#endif
+
+static const char *wmBuildTCDSSID(const char *dest, int op)
+{
+    if(op == WM_CP_DESTROY) {
+        if(dest) free((void *)dest);
+        return NULL;
+    }
+
+    if(!bttfnHaveTCDSSID)
+        return NULL;
+
+    unsigned int l = STRLEN(tcdSSIDp) + (TCDpwMarker ? STRLEN(tcdAPPW2) : STRLEN(tcdAPPW1)) + 4;
+    l += strlen(TCDSSID);
+
+    if(op == WM_CP_LEN) {
+        wmLenBuf = l;
+        return (const char *)&wmLenBuf;
+    }
+
+    char *str = (char *)malloc(l);
+
+    sprintf(str, tcdSSIDp, TCDSSID, TCDpwMarker ? tcdAPPW2 : tcdAPPW1);
+
+    return str;
+}
 
 static const char *wmBuildApChnl(const char *dest, int op)
 {
@@ -2087,6 +2213,13 @@ static const char *wmBuildRESAT(const char *dest, int op)
 {
     return wmBuildRadioButtons(dest, op, resatCustHTMLSrc, 2, settings.resAT);
 }
+
+#ifdef HAVE_PM
+static const char *wmBuildBatType(const char *dest, int op)
+{
+    return wmBuildSelect(dest, op, batTypeHTMLSrc, 7, settings.batType, false);
+}
+#endif
 
 #ifdef REMOTE_HAVEMQTT
 static const char *wmBuildMQTTprot(const char *dest, int op)
@@ -2626,6 +2759,25 @@ static char* strcpytrim(char* destination, const char* source, bool doFilter)
     
     while(*source) {
         if(!myisspace(*source) && (!doFilter || myisgoodchar(*source))) *destination++ = *source;
+        source++;
+    }
+    
+    *destination = 0;
+    
+    return ret;
+}
+
+static bool myisgoodcharMAC(char mychar)
+{
+    return ((mychar >= '0' && mychar <= '9') || (mychar >= 'a' && mychar <= 'f') || (mychar >= 'A' && mychar <= 'F') || mychar == ':');
+}
+
+static char* strcpytrimMAC(char* destination, const char* source)
+{
+    char *ret = destination;
+    
+    while(*source) {
+        if(!myisspace(*source) && myisgoodcharMAC(*source)) *destination++ = *source;
         source++;
     }
     
