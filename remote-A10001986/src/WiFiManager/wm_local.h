@@ -1,5 +1,5 @@
 /**
- * WiFiManager.h
+ * wm_local.h - REMOTE
  *
  * Based on:
  * WiFiManager, a library for the ESP32/Arduino platform
@@ -35,6 +35,8 @@
 #endif
 
 #define WM_UPLOAD
+
+#define WM_CCM
 
 // #define WM_AP_STATIC_IP
 // #define WM_APCALLBACK
