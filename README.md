@@ -54,9 +54,9 @@ The first step is to establish access to the Remote's configuration web site ("C
 
 ### Connecting to a WiFi network
 
-Your Remote knows two ways of WiFi operation: Either it creates its own WiFi network, or it connects to a pre-existing WiFi network.
+Your Remote knows two ways of WiFi operation: Either it creates its own WiFi network or it connects to a pre-existing WiFi network.
 
-As long as your Remote is unconfigured, it creates its own WiFi network named "REM-AP". This mode of operation is called "**Access point mode**", or **"AP-mode"**. In this mode, computers/handhelds can connect to your Remote in order to access the Config Portal, but ways of communication end right here. There is no inter-prop-communication ([BTTFN](#bttf-network-bttfn)) and no [HA/MQTT](#home-assistant--mqtt).
+As long as your Remote is unconfigured, it creates its own WiFi network named "REM-AP". This mode of operation is called "**Access point mode**" or **"AP-mode"**. In this mode, computers/handhelds can connect to your Remote in order to access the Config Portal, but ways of communication end right here. There is no inter-prop-communication ([BTTFN](#bttf-network-bttfn)) and no [HA/MQTT](#home-assistant--mqtt).
 
 ![APmode](img/apmode.png)
 
@@ -84,7 +84,7 @@ Click on "WiFi Configuration" and either select a network from the top of the pa
 <details>
 <summary>More...</summary>
 
->If there are several APs with identical SSID in your area, you can select a specific AP to use by its BSSID (AP's MAC address). You can either manually find out your AP's BSSID and enter it, or have it filled out automatically: Click "Scan for networks", then "Show all". If you click on an AP, its BSSID will be copied into BSSID field in the form below. To see which AP is which, hover over the name to see its BSSID as a tooltip.
+>If there are several APs with identical SSID in your area, you can select a specific AP to use by its BSSID (AP's MAC address). You can either manually find out your AP's BSSID and enter it or have it filled out automatically: Click "Scan for networks", then "Show all". If you click on an AP, its BSSID will be copied into BSSID field in the form below. To see which AP is which, hover over the name to see its BSSID as a tooltip.
   
 >Your Remote requests an IP address via DHCP, unless you entered valid data in the fields for static IP addresses (IP, gateway, netmask, DNS). If the device is inaccessible as a result of incorrect static IPs, 
 >- power-down the device,
@@ -149,7 +149,7 @@ A full reference of the Config Portal is [here](#appendix-a-the-config-portal).
 
 After [calibration](#calibration), your Remote is ready for use. 
 
-If battery monitoring is available, the battery state (in percent, or "FUL") is shown briefly upon (real) power-on.
+If battery monitoring is available, the battery state (in percent; or "FUL") is shown briefly upon (real) power-on.
 
 The Remote can be operated stand-alone, but is really meant to be (wirelessly) connected to a TCD.
 
@@ -159,7 +159,7 @@ For acceleration, there are two modes: Linear mode and "movie mode". In linear m
 
 When the remote hits 88.0mph, the TCD triggers a BTFN-wide time travel; all connected props will play a synchronized time travel sequence. If operated stand-alone, a time travel sequence will be played on the Remote.
 
-Auto-throttle: If this option is checked in the Config Portal, acceleration will continue to run after briefly pushing up the throttle stick and releasing it into neutral. Acceleration is stopped when pulling down the throttle stick, or when 88mph is reached.
+Auto-throttle: If this option is checked in the Config Portal, acceleration will continue to run after briefly pushing up the throttle stick and releasing it into neutral. Acceleration is stopped when pulling down the throttle stick or when 88mph is reached.
 
 Coasting: If this feature is enabled through the Config Portal, the Remote will ever so slightly reduce the current speed when the throttle lever is in neutral. Like a car when you put the transmission in neutral or press the clutch.
 
@@ -196,7 +196,7 @@ The throttle of the Remote needs calibration:
 - Hold the Calibration button for >= 2 seconds until a double-beep is emitted, then release the button. Shortly after "UP" will be displayed. Now push the throttle to the up-most position and press the Calibration button. "DN" will be displayed.
 - Pull the throttle lever to the bottom-most position and press the Calibration button. The display will clear, calibration is finished.
 
-If you change power-source (ie a new battery, or power via USB to the ESP32), re-calibration is required.
+If you change power-source (ie a new battery or power via USB to the ESP32), re-calibration is required.
  
 The Calibration button needs to be a momentary contact.
 
@@ -309,7 +309,7 @@ The "low battery" warning is given as follows:
 - A sound is played once
 - If the Futaba's battery level meter is connected and enabled, it is switched off (= it reads 0).
 - If the Futaba's original power LED is connected and enabled, it blinks.
-- If the power LED is disabled, depending on fake power, either "BAT" is displayed periodically, or the display blinks periodically.
+- If the power LED is disabled, depending on fake power, either "BAT" is displayed periodically or the display blinks periodically.
 
 ## Connecting a Time Circuits Display
 
@@ -520,7 +520,7 @@ The Remote supports MQTT protocol versions 3.1.1 and 5.0 for the following featu
 
 ### Send messages through User Buttons
 
-In the Config Portal, you can configure MQTT topics and messages for "on" and/or "off" for each of the eight User buttons/switches. This allows for arbitrary functions in your Home Assistant/MQTT realm. You could switch HA-integrated lights on or off, or send TIMETRAVEL to your [Time Circuits Display](https://tcd.out-a-ti.me) (bttf/tcd/cmd), or REFILL to your [Dash Gauges](https://dg.out-a-ti.me) (bttf/dg/cmd).
+In the Config Portal, you can configure MQTT topics and messages for "on" and/or "off" for each of the eight User buttons/switches. This allows for arbitrary functions in your Home Assistant/MQTT realm. You could switch HA-integrated lights on or off or send TIMETRAVEL to your [Time Circuits Display](https://tcd.out-a-ti.me) (bttf/tcd/cmd) or REFILL to your [Dash Gauges](https://dg.out-a-ti.me) (bttf/dg/cmd).
 
 The ON message will be sent when a button has been pressed, the OFF message when it has been released. In case of a button being configured as a maintained switch in the Config Portal, the ON message will be sent when the switch is closed, the OFF message when it is opened.
 
@@ -683,7 +683,7 @@ Finally, this page is also for uploading [custom or replacement sound files](#in
 
 ### WiFi Configuration
 
-Through this page you can either connect your Remote to your local WiFi network, or configure AP mode. 
+Through this page you can either connect your Remote to your local WiFi network or configure AP mode. 
 
 #### <ins>Connecting to an existing WiFi network</ins>
 
@@ -691,7 +691,7 @@ To connect your Remote to your WiFi network, all you need to do is either to cli
 
 >By default, the Remote requests an IP address via DHCP. However, you can also configure a static IP for the Remote by entering the IP, netmask, gateway and DNS server. All four fields must be filled for a valid static IP configuration. If you want to stick to DHCP, leave those four fields empty.
 
-If there are several APs with identical SSID in your area, you can select a specific AP to use by its BSSID (AP's MAC address). You can either manually find out your AP's BSSID and enter it, or have it filled out automatically: Click "Scan for networks", then "Show all". If you click on an AP, its BSSID will be copied into BSSID field in the form below. To see which AP is which, hover over the name to see its BSSID as a tooltip.
+If there are several APs with identical SSID in your area, you can select a specific AP to use by its BSSID (AP's MAC address). You can either manually find out your AP's BSSID and enter it or have it filled out automatically: Click "Scan for networks", then "Show all". If you click on an AP, its BSSID will be copied into BSSID field in the form below. To see which AP is which, hover over the name to see its BSSID as a tooltip.
 
 If the WiFi network the Remote is supposed to connect to wasn't reachable when the Remote was powered up, it will run in AP mode. You can trigger a re-connection attempt by fake-powering it down and up. This technique is also used for WiFi power-saving in AP-mode, see [here](#wifi-power-saving-features).
 
@@ -748,7 +748,7 @@ This procedure temporarily (until a reboot) clears the WiFi password, allowing u
 
 ##### &#9193; WiFi channel
 
-Here you can select one out of 11 channels, or have the Remote choose a random channel for you. The default channel is 1. Preferred are channels 1, 6 and 11.
+Here you can select one out of 11 channels or have the Remote choose a random channel for you. The default channel is 1. Preferred are channels 1, 6 and 11.
 
 WiFi channel selection is key for a trouble-free operation. Disturbed WiFi communication can lead to disrupted sequences, packet loss, hanging or freezing props, and other problems. A good article on WiFi channel selection is [here](https://community.ui.com/questions/Choosing-the-right-Wifi-Channel-on-2-4Ghz-Why-Conventional-Wisdom-is-Wrong/ea2ffae0-8028-45fb-8fbf-60569c6d026d).
 
@@ -775,7 +775,7 @@ If a power save timer is configured and has expired, and this option is checked,
 
 ##### &#9193; Auto throttle
 
-If this is checked, acceleration is, after being started by pushing the throttle stick up, continued even if the stick is released into neutral. Acceleration is stopped when pulling down the throttle stick, or when 88mph is reached.
+If this is checked, acceleration is, after being started by pushing the throttle stick up, continued even if the stick is released into neutral. Acceleration is stopped when pulling down the throttle stick or when 88mph is reached.
 
 This setting can quickly be toggled by holding the RESET button, if [so configured](#-holding-reset-when-fake-power-on).
 
@@ -905,7 +905,7 @@ If unchecked, the level meter comes to life on real power. If checked, it does s
 
 ##### &#9193; Battery monitoring/warnings
 
-Enable or disable battery monitoring and respective warnings. Battery monitoring requires using an "M"-version Control Board, or a non-M version with the BatMon Add-On, plus a properly connected LiPo battery.
+Enable or disable battery monitoring and respective warnings. Battery monitoring requires using Control Board versions 1.6M or >= 1.7, plus a properly connected LiPo battery.
 
 If the battery level is lower than 8 percent, a warning is issued. The way it is given depends on hardware and software settings, see [here](#battery-monitoring).
 
@@ -954,7 +954,7 @@ The MQTT message to publish to the button's topic when a button is pressed/relea
 - "INS" -> "SND" -> "PCK": Please install/update the [sound pack](#sound-pack-installation)
 - "BAT": Battery is low
 - "CAL", "UP", "DN": Shown during [calibration](#calibration)
-- "ERR": Error while installing the sound-pack, or during calibration. Please try again.
+- "ERR": Error while installing the sound-pack or during calibration. Please try again.
 - "FUL": Battery is full, ie 100% charged
 - "IP": IP address is going to be shown.
 - "RST": WiFi password temporarily cleared; static IP permanently deleted
