@@ -193,7 +193,7 @@ The throttle of the Remote needs calibration:
 
 - Put the "ON/OFF" switch in "OFF" position.
 - Put the throttle lever in neutral (center) position, press the Calibration button. The display will briefly show "CAL" to show acceptance.
-- Hold the Calibration button for >= 2 seconds until a double-beep is emitted, then release the button. Shortly after "UP" will be displayed. Now push the throttle to the up-most position and press the Calibration button. "DN" will be displayed.
+- Hold the Calibration button for >= 2 seconds until a double-beep is emitted, then release the button. Shortly after, "UP" will be displayed. Now push the throttle to the up-most position and press the Calibration button. "DN" will be displayed.
 - Pull the throttle lever to the bottom-most position and press the Calibration button. The display will clear, calibration is finished.
 
 If you change power-source (ie a new battery or power via USB to the ESP32), re-calibration is required.
@@ -270,7 +270,7 @@ Those files are not provided here. You can use any mp3, with a bitrate of 128kpb
 
 ### Installing Custom & Replacement Audio Files
 
-Replacements and custom sounds can either be copied to the SD card using a computer or uploaded through the Config Portal.
+Replacements and custom sounds can either be uploaded through the Config Portal or copied to the SD card using a computer.
 
 Uploading through the Config Portal works exactly like [installing the sound-pack](#sound-pack-installation); on the main menu, click "Update & Upload". Afterwards choose one or more mp3 files to upload using the bottom file selector, and click "UPLOAD". The firmware will store the uploaded mp3 files on the SD card.
 
