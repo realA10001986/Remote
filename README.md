@@ -632,7 +632,7 @@ If you are using a fresh ESP32, please go <a href="https://install.out-a-ti.me">
 
 ### Sound-pack installation
 
-The firmware comes with a sound-pack which needs to be installed separately. The sound-pack is not updated as often as the firmware itself. There will be a message in the Config Portal and the Remote will briefly display "ISP" during boot when/if the sound-pack needs to be updated.
+The firmware comes with a sound-pack which needs to be installed separately. The sound-pack is not updated as often as the firmware itself. There will be a message in the Config Portal and the Remote will briefly display "INS"-"SND"-"PCK" during boot when/if the sound-pack needs to be updated.
 
 _Note that installing the sound-pack requires an [SD card](#sd-card)._
 
