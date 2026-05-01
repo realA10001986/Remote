@@ -44,6 +44,7 @@ ELRSCrsfTransport::ELRSCrsfTransport()
 
     memset(_rxFrame, 0, sizeof(_rxFrame));
     memset(_serviceFrame, 0, sizeof(_serviceFrame));
+    memset(_lastTxFrame, 0, sizeof(_lastTxFrame));
 }
 
 void ELRSCrsfTransport::setSink(ELRSCrsfTransportSink *sink)
@@ -83,6 +84,8 @@ void ELRSCrsfTransport::begin(ELRSCrsfTransportHal &hal, const ELRSCrsfTransport
     _replyDeadlineAt = 0;
     _nextTxAtUs = nowUs;
     _lastServiceTxAt = 0;
+    _serviceReplyHoldoffUntil = 0;
+    _echoSuppressUntil = 0;
     _crcBurstAt = 0;
     _frameBurstAt = 0;
     _txIntervalUs = 1000000UL / _config.packetRateHz;
@@ -96,8 +99,10 @@ void ELRSCrsfTransport::begin(ELRSCrsfTransportHal &hal, const ELRSCrsfTransport
     _haveServiceFrame = false;
     _rxFrameLen = 0;
     _serviceFrameLen = 0;
+    _lastTxFrameLen = 0;
     memset(_rxFrame, 0, sizeof(_rxFrame));
     memset(_serviceFrame, 0, sizeof(_serviceFrame));
+    memset(_lastTxFrame, 0, sizeof(_lastTxFrame));
 
     hal.stopSerial();
     hal.startSerial(_config.baudRate, _config.invertLine);
@@ -135,12 +140,15 @@ void ELRSCrsfTransport::loop(ELRSCrsfTransportHal &hal, unsigned long now, unsig
 
     if(nowUs >= _nextTxAtUs) {
         if(_haveServiceFrame && (!_lastServiceTxAt || (now - _lastServiceTxAt >= CRSF_SERVICE_FRAME_GAP_MS))) {
-            sendFrame(hal, _serviceFrame, _serviceFrameLen, now, nowUs, "ELRS/CRSF CFG");
+            sendFrame(hal, _serviceFrame, _serviceFrameLen, now, nowUs, "ELRS/CRSF CFG", true);
+            _serviceReplyHoldoffUntil = now + _config.replyTimeoutMs;
             _haveServiceFrame = false;
             _serviceFrameLen = 0;
             _lastServiceTxAt = now;
-        } else {
+        } else if(!_serviceReplyHoldoffUntil || now >= _serviceReplyHoldoffUntil) {
             sendChannels(hal, now, nowUs);
+        } else {
+            return;
         }
     }
 }
@@ -162,7 +170,7 @@ bool ELRSCrsfTransport::hasPendingServiceFrame() const
     return _haveServiceFrame;
 }
 
-void ELRSCrsfTransport::sendFrame(ELRSCrsfTransportHal &hal, const uint8_t *frame, size_t frameLen, unsigned long now, unsigned long nowUs, const char *prefix)
+void ELRSCrsfTransport::sendFrame(ELRSCrsfTransportHal &hal, const uint8_t *frame, size_t frameLen, unsigned long now, unsigned long nowUs, const char *prefix, bool resetReplyWindow)
 {
     if(!frame || !frameLen) {
         return;
@@ -178,12 +186,16 @@ void ELRSCrsfTransport::sendFrame(ELRSCrsfTransportHal &hal, const uint8_t *fram
     hal.serialFlush();
     hal.setDriverEnabled(false);
 
+    memcpy(_lastTxFrame, frame, frameLen);
+    _lastTxFrameLen = frameLen;
+    _echoSuppressUntil = now + 5;
+
     if(_status.debugEnabled) {
         logf(hal, "ELRS/CRSF transport: OE off @%luus", nowUs);
     }
 
     _status.lastTxAt = now;
-    if(!_waitingForReply) {
+    if(resetReplyWindow || !_waitingForReply) {
         _waitingForReply = true;
         _replySeenForTx = false;
         _replyDeadlineAt = now + _config.replyTimeoutMs;
@@ -211,7 +223,7 @@ void ELRSCrsfTransport::sendChannels(ELRSCrsfTransportHal &hal, unsigned long no
     if(!frameLen) {
         return;
     }
-    sendFrame(hal, frame, frameLen, now, nowUs, "ELRS/CRSF TX");
+    sendFrame(hal, frame, frameLen, now, nowUs, "ELRS/CRSF TX", false);
 }
 
 void ELRSCrsfTransport::pollFrames(ELRSCrsfTransportHal &hal, unsigned long now)
@@ -267,11 +279,20 @@ void ELRSCrsfTransport::pollFrames(ELRSCrsfTransportHal &hal, unsigned long now)
                 }
 
                 if(crcValid) {
+                    if(_lastTxFrameLen == expectLen &&
+                       _echoSuppressUntil &&
+                       now <= _echoSuppressUntil &&
+                       !memcmp(_lastTxFrame, _rxFrame, expectLen)) {
+                        _rxFrameLen = 0;
+                        continue;
+                    }
+
                     bool supportedTelemetry = false;
 
                     _status.lastReplyAt = now;
                     _status.lastRxAt = now;
                     _lastReplyAt = now;
+                    _serviceReplyHoldoffUntil = 0;
                     _status.replyActive = true;
                     _status.synced = true;
                     _status.everReplied = true;

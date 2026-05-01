@@ -14,6 +14,7 @@
 #define ELRS_PACKET_RATE_100HZ 100
 #define ELRS_PACKET_RATE_150HZ 150
 #define ELRS_PACKET_RATE_250HZ 250
+#define ELRS_PACKET_RATE_500HZ 500
 #define ELRS_PACKET_RATE_DEFAULT ELRS_PACKET_RATE_250HZ
 
 #define ELRS_SPEED_UNITS_KMH 0
@@ -52,7 +53,8 @@ static inline bool elrsPacketRateSupported(uint16_t packetRateHz)
     return (packetRateHz == ELRS_PACKET_RATE_50HZ ||
             packetRateHz == ELRS_PACKET_RATE_100HZ ||
             packetRateHz == ELRS_PACKET_RATE_150HZ ||
-            packetRateHz == ELRS_PACKET_RATE_250HZ);
+            packetRateHz == ELRS_PACKET_RATE_250HZ ||
+            packetRateHz == ELRS_PACKET_RATE_500HZ);
 }
 
 static inline uint16_t elrsPacketRateOrDefault(uint16_t packetRateHz)

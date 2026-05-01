@@ -88,7 +88,11 @@ bool ELRSCrsfMode::begin(
                                                   elrsPacketRateOrDefault(config.transport.packetRateHz));
     config.transport.telemetryTimeoutMs = 2000;
     config.transport.replyTimeoutMs = 20;
+    #ifdef REMOTE_DBG
+    config.transport.debugEnabled = true;
+    #else
     config.transport.debugEnabled = false;
+    #endif
     config.transport.oeActiveLow = _oeActiveLow;
 
     return _core.begin(*this, config, millis(), micros());

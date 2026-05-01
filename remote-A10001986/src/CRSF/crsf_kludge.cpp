@@ -86,11 +86,12 @@ static bool     haveCRSFSettings  = false;
 
 static const char *crsfCfgName  = "/crsfcfg";
 
-static const uint16_t packetRates[4] = {
+static const uint16_t packetRates[5] = {
     ELRS_PACKET_RATE_50HZ,
     ELRS_PACKET_RATE_100HZ,
     ELRS_PACKET_RATE_150HZ,
-    ELRS_PACKET_RATE_250HZ
+    ELRS_PACKET_RATE_250HZ,
+    ELRS_PACKET_RATE_500HZ
 };
 
 static const uint8_t speedUnits[2] = {
@@ -124,7 +125,7 @@ static const uint8_t dynamicPowers[2] = {
 
 uint16_t crsf_getPacketRate(int idx)
 {
-    if(idx < 0 || idx > 3) idx = 3;
+    if(idx < 0 || idx > 4) idx = 3;
     return packetRates[idx];
 }
 

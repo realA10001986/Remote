@@ -95,7 +95,7 @@ class ELRSCrsfTransport {
         static size_t packRcChannelsFrame(const uint16_t channels[16], uint8_t *frame, size_t frameSize);
 
     private:
-        void sendFrame(ELRSCrsfTransportHal &hal, const uint8_t *frame, size_t frameLen, unsigned long now, unsigned long nowUs, const char *prefix);
+        void sendFrame(ELRSCrsfTransportHal &hal, const uint8_t *frame, size_t frameLen, unsigned long now, unsigned long nowUs, const char *prefix, bool resetReplyWindow);
         void sendChannels(ELRSCrsfTransportHal &hal, unsigned long now, unsigned long nowUs);
         void pollFrames(ELRSCrsfTransportHal &hal, unsigned long now);
         void resyncRxBuffer(size_t startIndex = 1);
@@ -119,14 +119,18 @@ class ELRSCrsfTransport {
         uint16_t _channels[16];
         uint8_t _rxFrame[64];
         uint8_t _serviceFrame[64];
+        uint8_t _lastTxFrame[64];
         size_t _rxFrameLen = 0;
         size_t _serviceFrameLen = 0;
+        size_t _lastTxFrameLen = 0;
         unsigned long _startedAt = 0;
         unsigned long _lastReplyAt = 0;
         unsigned long _lastTelemetryAt = 0;
         unsigned long _replyDeadlineAt = 0;
         unsigned long _nextTxAtUs = 0;
         unsigned long _lastServiceTxAt = 0;
+        unsigned long _serviceReplyHoldoffUntil = 0;
+        unsigned long _echoSuppressUntil = 0;
         unsigned long _crcBurstAt = 0;
         unsigned long _frameBurstAt = 0;
         uint32_t _txIntervalUs = 0;

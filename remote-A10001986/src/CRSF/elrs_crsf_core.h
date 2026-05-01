@@ -255,8 +255,11 @@ class ELRSCrsfCore : private ELRSCrsfTransportSink {
         uint8_t _moduleFieldIndex = 0;
         uint8_t _moduleTargetIndex = 0;
         uint8_t _moduleWriteFieldId = 0;
+        uint8_t _moduleProbeRetryCount = 0;
+        uint8_t _moduleParameterRetryCount = 0;
         bool _moduleChunkActive = false;
         uint8_t _moduleChunkFieldId = 0;
+        uint8_t _moduleChunkNextIndex = 0;
         size_t _moduleChunkLen = 0;
         uint8_t _moduleChunkData[192];
         ModuleParameterInfo _moduleTelemetryRatio;

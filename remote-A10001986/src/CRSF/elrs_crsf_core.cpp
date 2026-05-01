@@ -23,7 +23,10 @@ constexpr uint8_t CRSF_FRAME_DEVICE_INFO = 0x29;
 constexpr uint8_t CRSF_FRAME_PARAMETER_SETTINGS_ENTRY = 0x2B;
 constexpr uint8_t CRSF_FRAME_PARAMETER_READ = 0x2C;
 constexpr uint8_t CRSF_FRAME_PARAMETER_WRITE = 0x2D;
+constexpr uint8_t CRSF_SYNC_BYTE = 0xC8;
+constexpr uint8_t CRSF_EXT_ADDR_BROADCAST = 0x00;
 constexpr uint8_t CRSF_EXT_ADDR_RADIO_TRANSMITTER = 0xEA;
+constexpr uint8_t CRSF_EXT_ADDR_HANDSET = 0xEF;
 constexpr uint8_t CRSF_EXT_ADDR_CRSF_TRANSMITTER = 0xEE;
 constexpr uint8_t CRSF_PARAM_TEXT_SELECTION = 0x09;
 
@@ -34,7 +37,10 @@ constexpr unsigned long CRSF_COMM_NSY_OVERLAY_MS = 1500;
 constexpr unsigned long CRSF_MODULE_CONFIG_START_DELAY_MS = 1000;
 constexpr unsigned long CRSF_MODULE_CONFIG_REPLY_TIMEOUT_MS = 500;
 constexpr unsigned long CRSF_MODULE_CONFIG_WRITE_DELAY_MS = 300;
+constexpr unsigned long CRSF_MODULE_CONFIG_PROBE_RETRY_DELAY_MS = 1000;
 constexpr unsigned long CRSF_MODULE_CONFIG_RETRY_DELAY_MS = 10000;
+constexpr uint8_t CRSF_MODULE_CONFIG_MAX_PROBE_RETRIES = 2;
+constexpr uint8_t CRSF_MODULE_CONFIG_MAX_PARAMETER_RETRIES = 2;
 constexpr unsigned long BATTERY_BANNER_INTERVAL = 30000;
 constexpr unsigned long BATTERY_BANNER_DURATION = 1000;
 constexpr size_t CRSF_DEVICE_INFO_TRAILER_LEN = 14;
@@ -853,8 +859,11 @@ void ELRSCrsfCore::resetModuleParameters()
     _moduleFieldIndex = 0;
     _moduleTargetIndex = 0;
     _moduleWriteFieldId = 0;
+    _moduleProbeRetryCount = 0;
+    _moduleParameterRetryCount = 0;
     _moduleChunkActive = false;
     _moduleChunkFieldId = 0;
+    _moduleChunkNextIndex = 0;
     _moduleChunkLen = 0;
     memset(_moduleChunkData, 0, sizeof(_moduleChunkData));
     _moduleTelemetryRatio = ModuleParameterInfo();
@@ -879,7 +888,7 @@ bool ELRSCrsfCore::buildExtendedFrame(uint8_t type, uint8_t destAddr, uint8_t or
         return false;
     }
 
-    frame[0] = destAddr;
+    frame[0] = CRSF_SYNC_BYTE;
     frame[1] = (uint8_t)(payloadLen + 4);
     frame[2] = type;
     frame[3] = destAddr;
@@ -896,7 +905,7 @@ bool ELRSCrsfCore::queueModulePing()
 {
     uint8_t frame[6];
 
-    if(!buildExtendedFrame(CRSF_FRAME_DEVICE_PING, CRSF_EXT_ADDR_CRSF_TRANSMITTER, CRSF_EXT_ADDR_RADIO_TRANSMITTER, NULL, 0, frame, sizeof(frame))) {
+    if(!buildExtendedFrame(CRSF_FRAME_DEVICE_PING, CRSF_EXT_ADDR_BROADCAST, CRSF_EXT_ADDR_RADIO_TRANSMITTER, NULL, 0, frame, sizeof(frame))) {
         return false;
     }
 
@@ -908,7 +917,7 @@ bool ELRSCrsfCore::queueParameterRead(uint8_t fieldId, uint8_t chunkIndex)
     uint8_t frame[8];
     uint8_t payload[2] = { fieldId, chunkIndex };
 
-    if(!buildExtendedFrame(CRSF_FRAME_PARAMETER_READ, CRSF_EXT_ADDR_CRSF_TRANSMITTER, CRSF_EXT_ADDR_RADIO_TRANSMITTER, payload, sizeof(payload), frame, sizeof(frame))) {
+    if(!buildExtendedFrame(CRSF_FRAME_PARAMETER_READ, CRSF_EXT_ADDR_CRSF_TRANSMITTER, CRSF_EXT_ADDR_HANDSET, payload, sizeof(payload), frame, sizeof(frame))) {
         return false;
     }
 
@@ -920,7 +929,7 @@ bool ELRSCrsfCore::queueParameterWrite(uint8_t fieldId, uint8_t value)
     uint8_t frame[8];
     uint8_t payload[2] = { fieldId, value };
 
-    if(!buildExtendedFrame(CRSF_FRAME_PARAMETER_WRITE, CRSF_EXT_ADDR_CRSF_TRANSMITTER, CRSF_EXT_ADDR_RADIO_TRANSMITTER, payload, sizeof(payload), frame, sizeof(frame))) {
+    if(!buildExtendedFrame(CRSF_FRAME_PARAMETER_WRITE, CRSF_EXT_ADDR_CRSF_TRANSMITTER, CRSF_EXT_ADDR_HANDSET, payload, sizeof(payload), frame, sizeof(frame))) {
         return false;
     }
 
@@ -978,6 +987,7 @@ void ELRSCrsfCore::handleDeviceInfo(const uint8_t *payload, size_t payloadLen, u
 
     noteModuleConfigResponse();
     resetModuleParameters();
+    _moduleProbeRetryCount = 0;
     _moduleFieldCount = info[12];
     _moduleFieldIndex = 1;
     _moduleTargetIndex = 0;
@@ -1016,10 +1026,12 @@ void ELRSCrsfCore::handleParameterSettingsEntry(const uint8_t *payload, size_t p
     }
 
     noteModuleConfigResponse();
+    _moduleParameterRetryCount = 0;
 
     if(!_moduleChunkActive || _moduleChunkFieldId != fieldId) {
         _moduleChunkActive = true;
         _moduleChunkFieldId = fieldId;
+        _moduleChunkNextIndex = 1;
         _moduleChunkLen = 0;
     }
 
@@ -1032,9 +1044,18 @@ void ELRSCrsfCore::handleParameterSettingsEntry(const uint8_t *payload, size_t p
     memcpy(_moduleChunkData + _moduleChunkLen, chunkData, chunkLen);
     _moduleChunkLen += chunkLen;
 
-    if(!chunksRemain) {
+    if(chunksRemain) {
+        if(_moduleConfigState == MODULECFG_WAIT_PARAMETER &&
+           fieldId == _moduleFieldIndex &&
+           !_transport.hasPendingServiceFrame() &&
+           queueParameterRead(fieldId, _moduleChunkNextIndex)) {
+            _moduleChunkNextIndex++;
+            _moduleConfigDeadlineAt = now + CRSF_MODULE_CONFIG_REPLY_TIMEOUT_MS;
+        }
+    } else {
         finishParameterChunk(fieldId, _moduleChunkData, _moduleChunkLen, now);
         _moduleChunkActive = false;
+        _moduleChunkNextIndex = 0;
         _moduleChunkLen = 0;
     }
 }
@@ -1074,6 +1095,7 @@ void ELRSCrsfCore::finishParameterChunk(uint8_t fieldId, const uint8_t *data, si
 
     if(_moduleConfigState == MODULECFG_WAIT_PARAMETER && fieldId == _moduleFieldIndex) {
         _moduleFieldIndex++;
+        _moduleParameterRetryCount = 0;
         _moduleConfigState = (_moduleFieldIndex <= _moduleFieldCount) ? MODULECFG_READ_PARAMETER : MODULECFG_APPLY_SETTING;
         _moduleConfigNextAt = now;
         _moduleConfigDeadlineAt = 0;
@@ -1181,8 +1203,15 @@ void ELRSCrsfCore::updateModuleConfig(ELRSCrsfHost &host, unsigned long now)
 
     case MODULECFG_WAIT_DEVICE_INFO:
         if(_moduleConfigDeadlineAt && now >= _moduleConfigDeadlineAt) {
-            log(host, "ELRS/CRSF: module settings probe timed out");
-            setModuleConfigBackoff(now, CRSF_MODULE_CONFIG_RETRY_DELAY_MS);
+            if(_moduleProbeRetryCount < CRSF_MODULE_CONFIG_MAX_PROBE_RETRIES) {
+                _moduleProbeRetryCount++;
+                _moduleConfigState = MODULECFG_WAIT_START;
+                _moduleConfigNextAt = now + CRSF_MODULE_CONFIG_PROBE_RETRY_DELAY_MS;
+                _moduleConfigDeadlineAt = 0;
+            } else {
+                log(host, "ELRS/CRSF: module settings probe timed out");
+                setModuleConfigBackoff(now, CRSF_MODULE_CONFIG_RETRY_DELAY_MS);
+            }
         }
         break;
 
@@ -1196,6 +1225,8 @@ void ELRSCrsfCore::updateModuleConfig(ELRSCrsfHost &host, unsigned long now)
             return;
         }
         if(queueParameterRead(_moduleFieldIndex, 0)) {
+            _moduleChunkNextIndex = 1;
+            _moduleParameterRetryCount = 0;
             _moduleConfigState = MODULECFG_WAIT_PARAMETER;
             _moduleConfigDeadlineAt = now + CRSF_MODULE_CONFIG_REPLY_TIMEOUT_MS;
         }
@@ -1203,8 +1234,19 @@ void ELRSCrsfCore::updateModuleConfig(ELRSCrsfHost &host, unsigned long now)
 
     case MODULECFG_WAIT_PARAMETER:
         if(_moduleConfigDeadlineAt && now >= _moduleConfigDeadlineAt) {
-            logf(host, "ELRS/CRSF: parameter scan timed out at field %u", (unsigned)_moduleFieldIndex);
-            setModuleConfigBackoff(now, CRSF_MODULE_CONFIG_RETRY_DELAY_MS);
+            const uint8_t retryChunkIndex = (_moduleChunkActive &&
+                                             _moduleChunkFieldId == _moduleFieldIndex &&
+                                             _moduleChunkNextIndex) ? (uint8_t)(_moduleChunkNextIndex - 1) : 0;
+
+            if(_moduleParameterRetryCount < CRSF_MODULE_CONFIG_MAX_PARAMETER_RETRIES &&
+               !_transport.hasPendingServiceFrame() &&
+               queueParameterRead(_moduleFieldIndex, retryChunkIndex)) {
+                _moduleParameterRetryCount++;
+                _moduleConfigDeadlineAt = now + CRSF_MODULE_CONFIG_REPLY_TIMEOUT_MS;
+            } else {
+                logf(host, "ELRS/CRSF: parameter scan timed out at field %u", (unsigned)_moduleFieldIndex);
+                setModuleConfigBackoff(now, CRSF_MODULE_CONFIG_RETRY_DELAY_MS);
+            }
         }
         break;
 
