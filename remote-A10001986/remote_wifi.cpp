@@ -206,13 +206,14 @@ static const char *cOpModeCustHTMLSrc[4] = {
     ">Legacy%s1'",
     ">ELRS/CRSF%s"
 };
-static const char *cPktRateCustHTMLSrc[6] = {
+static const char *cPktRateCustHTMLSrc[7] = {
     "'>ELRS Packet rate",
     "cpktr",
     ">50 Hz%s1'",
     ">100 Hz%s2'",
     ">150 Hz%s3'",
-    ">250 Hz%s"
+    ">250 Hz%s4'",
+    ">500 Hz%s"
 };
 static const char *cSpdUnitCustHTMLSrc[4] = {
     "'>Speed units",
@@ -1770,7 +1771,7 @@ static void saveParamsCallback(int paramspage)
     case 3:
         #ifdef HAVE_CRSF
         getServerParam("copm", settings.opMode, 1, 0, 1, 0);
-        getServerParam("cpktr", settings.elrsPktRate, 1, 0, 3, DEF_ELRSPKTRATE);
+        getServerParam("cpktr", settings.elrsPktRate, 1, 0, 4, DEF_ELRSPKTRATE);
         getServerParam("cspdu", settings.elrsSpdUnit, 1, 0, 1, DEF_ELRSSPDUNIT);
         getServerParam("ctlmr", settings.elrsTlmRatio, 1, 0, 6, DEF_ELRSTLMRATIO);
         getServerParam("cmpwr", settings.elrsMaxPower, 1, 0, 5, DEF_ELRSMAXPOWER);
@@ -2369,7 +2370,7 @@ static const char *wmBuildCRSFOM(const char *dest, int op)
 }
 static const char *wmBuildCRSFPR(const char *dest, int op)
 {
-    return wmBuildSelect(dest, op, cPktRateCustHTMLSrc, 6, settings.elrsPktRate, false);
+    return wmBuildSelect(dest, op, cPktRateCustHTMLSrc, 7, settings.elrsPktRate, false);
 }
 static const char *wmBuildCRSFSU(const char *dest, int op)
 {
