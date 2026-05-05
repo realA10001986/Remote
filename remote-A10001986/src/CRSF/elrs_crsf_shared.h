@@ -1,6 +1,7 @@
 #ifndef _ELRS_CRSF_SHARED_H
 #define _ELRS_CRSF_SHARED_H
 
+#include <stddef.h>
 #include <stdint.h>
 
 /*
@@ -9,6 +10,14 @@
  */
 
 #define ELRS_GIMBAL_AXIS_COUNT 4
+
+#define ELRS_INPUT_US_MIN 1000
+#define ELRS_INPUT_US_MID 1500
+#define ELRS_INPUT_US_MAX 2000
+
+#define ELRS_CRSF_CHANNEL_MIN 172
+#define ELRS_CRSF_CHANNEL_MID 992
+#define ELRS_CRSF_CHANNEL_MAX 1811
 
 #define ELRS_PACKET_RATE_50HZ  50
 #define ELRS_PACKET_RATE_100HZ 100
@@ -60,6 +69,33 @@ static inline bool elrsPacketRateSupported(uint16_t packetRateHz)
 static inline uint16_t elrsPacketRateOrDefault(uint16_t packetRateHz)
 {
     return elrsPacketRateSupported(packetRateHz) ? packetRateHz : (uint16_t)ELRS_PACKET_RATE_DEFAULT;
+}
+
+static inline uint16_t elrsCrsfModuleReplyTimeoutMs(uint16_t packetRateHz)
+{
+    packetRateHz = elrsPacketRateOrDefault(packetRateHz);
+    return (packetRateHz >= ELRS_PACKET_RATE_500HZ) ? 50U : 20U;
+}
+
+static inline uint32_t elrsCrsfRecommendedBaudRate(uint16_t packetRateHz)
+{
+    packetRateHz = elrsPacketRateOrDefault(packetRateHz);
+    return (packetRateHz >= ELRS_PACKET_RATE_500HZ) ? 921600UL : 400000UL;
+}
+
+static inline uint16_t elrsCrsfDriverEnableSetupUs()
+{
+    return 40U;
+}
+
+static inline uint16_t elrsCrsfDriverDisableHoldUs()
+{
+    return 40U;
+}
+
+static inline uint16_t elrsCrsfDriverReleaseGuardUs()
+{
+    return 150U;
 }
 
 static inline bool elrsSpeedUnitsSupported(uint8_t speedUnits)
@@ -132,6 +168,56 @@ static inline uint8_t elrsDynamicPowerOrDefault(uint8_t dynamicPower)
 static inline const char *elrsDynamicPowerLabel(uint8_t dynamicPower)
 {
     return (elrsDynamicPowerOrDefault(dynamicPower) == ELRS_DYNAMIC_POWER_DYNAMIC) ? "Dyn" : "Off";
+}
+
+static inline uint8_t elrsAds1015SingleEndedConfigHighByte(uint8_t channel)
+{
+    static const uint8_t muxBits[ELRS_GIMBAL_AXIS_COUNT] = { 0x04, 0x05, 0x06, 0x07 };
+    const uint8_t adsPga4v096 = 0x02;
+
+    if(channel >= ELRS_GIMBAL_AXIS_COUNT) {
+        channel = 0;
+    }
+
+    return (uint8_t)(0x80 | (muxBits[channel] << 4) | adsPga4v096 | 0x01);
+}
+
+static inline bool elrsAxesChanged(const int16_t *current, const int16_t *previous, size_t count, int16_t threshold = 0)
+{
+    if(!current || !previous) {
+        return false;
+    }
+
+    for(size_t i = 0; i < count; i++) {
+        int16_t delta = (int16_t)(current[i] - previous[i]);
+        if(delta < 0) {
+            delta = (int16_t)(-delta);
+        }
+        if(delta > threshold) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+static inline int16_t elrsIirFilterStep(int16_t previous, int16_t sample, uint8_t shift = 2)
+{
+    int16_t delta;
+    int16_t divisor;
+
+    if(!shift) {
+        return sample;
+    }
+
+    delta = (int16_t)(sample - previous);
+    divisor = (int16_t)(1U << shift);
+
+    if(delta > -divisor && delta < divisor) {
+        return previous;
+    }
+
+    return (int16_t)(previous + (delta / divisor));
 }
 
 #endif

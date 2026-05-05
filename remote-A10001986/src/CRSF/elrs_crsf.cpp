@@ -16,6 +16,8 @@ constexpr uint8_t CRSF_OE_PIN = 0;
 constexpr uint8_t ADS1015_ADDR = 0x48;
 constexpr uint8_t ADS_REG_CONVERT = 0x00;
 constexpr uint8_t ADS_REG_CONFIG = 0x01;
+constexpr int16_t ADS_LOG_DELTA_THRESHOLD = 20;
+constexpr uint8_t ADS_FILTER_SHIFT = 2;
 
 }
 
@@ -31,6 +33,8 @@ bool ELRSCrsfMode::begin(
     uint8_t telemetryRatio,
     uint8_t maxPower,
     uint8_t dynamicPower,
+    const ELRSInputAxisProfile *axisProfiles,
+    const ELRSGimbalRouting &inputRouting,
     ButtonPack *buttonPack,
     bool haveButtonPack,
     remDisplay *display,
@@ -57,6 +61,13 @@ bool ELRSCrsfMode::begin(
     _levelMeterOnFakePower = levelMeterOnFakePower;
     _haveAds = false;
     _oeActiveLow = true;
+    _haveLoggedAxes = false;
+    _haveFilteredAxes = false;
+    for(int i = 0; i < ELRS_GIMBAL_AXIS_COUNT; i++) {
+        _rawAxes[i] = 1024;
+        _filteredAxes[i] = 1024;
+        _lastLoggedAxes[i] = 1024;
+    }
 
     _fpOnWifiHandler = fpOnWifiHandler;
 
@@ -81,17 +92,30 @@ bool ELRSCrsfMode::begin(
     config.telemetryRatio = elrsTelemetryRatioOrDefault(telemetryRatio);
     config.maxPower = elrsMaxPowerOrDefault(maxPower);
     config.dynamicPower = elrsDynamicPowerOrDefault(dynamicPower);
-    config.transport.baudRate = 400000;
+    for(int i = 0; i < ELRS_GIMBAL_AXIS_COUNT; i++) {
+        if(axisProfiles) {
+            config.axisProfiles[i] = elrsSanitizeInputAxisProfile(axisProfiles[i]);
+        } else {
+            config.axisProfiles[i] = elrsDefaultInputAxisProfile();
+        }
+    }
+    config.inputRouting = elrsSanitizeGimbalRouting(inputRouting);
+    config.transport.baudRate = elrsCrsfRecommendedBaudRate(packetRateHz);
     config.transport.invertLine = false;
     config.transport.packetRateHz = packetRateHz;
     config.transport.frameIntervalMs = (uint16_t)((1000UL + elrsPacketRateOrDefault(config.transport.packetRateHz) - 1) /
                                                   elrsPacketRateOrDefault(config.transport.packetRateHz));
     config.transport.telemetryTimeoutMs = 2000;
-    config.transport.replyTimeoutMs = 20;
+    config.transport.replyTimeoutMs = elrsCrsfModuleReplyTimeoutMs(packetRateHz);
     #ifdef REMOTE_DBG
     config.transport.debugEnabled = true;
     #else
     config.transport.debugEnabled = false;
+    #endif
+    #ifdef REMOTE_DBG_CRSF_RAW
+    config.transport.rawFrameDebugEnabled = true;
+    #else
+    config.transport.rawFrameDebugEnabled = false;
     #endif
     config.transport.oeActiveLow = _oeActiveLow;
 
@@ -118,15 +142,38 @@ ELRSCrsfStatus ELRSCrsfMode::getStatus() const
     return _core.getStatus();
 }
 
+bool ELRSCrsfMode::readCurrentRawAxes(int16_t axes[ELRS_GIMBAL_AXIS_COUNT])
+{
+    if(!axes) {
+        return false;
+    }
+
+    if(!_haveAds) {
+        _haveAds = initAds1015();
+    }
+    if(!_haveAds) {
+        return false;
+    }
+
+    for(int i = 0; i < ELRS_GIMBAL_AXIS_COUNT; i++) {
+        axes[i] = readAdsChannel(i);
+    }
+
+    return true;
+}
+
 bool ELRSCrsfMode::initAds1015()
 {
     Wire.beginTransmission(ADS1015_ADDR);
-    return (Wire.endTransmission(true) == 0);
+    bool ok = (Wire.endTransmission(true) == 0);
+    #ifdef REMOTE_DBG
+    Serial.printf("ELRS/CRSF ADC: ADS1015 probe %s @0x%02X\n", ok ? "ok" : "failed", ADS1015_ADDR);
+    #endif
+    return ok;
 }
 
 int16_t ELRSCrsfMode::readAdsChannel(uint8_t channel)
 {
-    static const uint8_t muxBits[ELRS_GIMBAL_AXIS_COUNT] = { 0x04, 0x05, 0x06, 0x07 };
     uint8_t cfg[3];
     uint8_t raw[2];
     int value = 0;
@@ -136,7 +183,7 @@ int16_t ELRSCrsfMode::readAdsChannel(uint8_t channel)
     }
 
     cfg[0] = ADS_REG_CONFIG;
-    cfg[1] = 0x80 | (muxBits[channel] << 4) | 0x04 | 0x01;
+    cfg[1] = elrsAds1015SingleEndedConfigHighByte(channel);
     cfg[2] = 0xE3;
 
     Wire.beginTransmission(ADS1015_ADDR);
@@ -210,8 +257,13 @@ void ELRSCrsfMode::serialFlush()
 
 void ELRSCrsfMode::setDriverEnabled(bool enabled)
 {
+    if(!enabled) {
+        delayMicroseconds(elrsCrsfDriverDisableHoldUs());
+    }
+
     bool level = enabled ? !_oeActiveLow : _oeActiveLow;
     digitalWrite(CRSF_OE_PIN, level ? HIGH : LOW);
+    delayMicroseconds(enabled ? elrsCrsfDriverEnableSetupUs() : elrsCrsfDriverReleaseGuardUs());
 }
 
 void ELRSCrsfMode::discardSerialInput()
@@ -221,16 +273,39 @@ void ELRSCrsfMode::discardSerialInput()
     }
 }
 
+unsigned long ELRSCrsfMode::microsNow()
+{
+    return micros();
+}
+
 bool ELRSCrsfMode::sampleAxes(int16_t axes[ELRS_GIMBAL_AXIS_COUNT])
 {
+    int16_t sample;
+
     if(!_haveAds) {
         return false;
     }
 
     for(int i = 0; i < ELRS_GIMBAL_AXIS_COUNT; i++) {
-        _rawAxes[i] = readAdsChannel(i);
-        axes[i] = _rawAxes[i];
+        sample = readAdsChannel(i);
+        if(!_haveFilteredAxes) {
+            _filteredAxes[i] = sample;
+        } else {
+            _filteredAxes[i] = elrsIirFilterStep(_filteredAxes[i], sample, ADS_FILTER_SHIFT);
+        }
+        _rawAxes[i] = _filteredAxes[i];
+        axes[i] = _filteredAxes[i];
     }
+    _haveFilteredAxes = true;
+
+    #ifdef REMOTE_DBG
+    if(!_haveLoggedAxes || elrsAxesChanged(_rawAxes, _lastLoggedAxes, ELRS_GIMBAL_AXIS_COUNT, ADS_LOG_DELTA_THRESHOLD)) {
+        memcpy(_lastLoggedAxes, _rawAxes, sizeof(_lastLoggedAxes));
+        _haveLoggedAxes = true;
+        Serial.printf("ELRS/CRSF ADC raw: A0=%d A1=%d A2=%d A3=%d\n",
+                      _rawAxes[0], _rawAxes[1], _rawAxes[2], _rawAxes[3]);
+    }
+    #endif
 
     return true;
 }

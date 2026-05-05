@@ -19,6 +19,7 @@ constexpr uint8_t CRSF_ADDR_CRSF_RECEIVER = 0xEC;
 constexpr unsigned long CRSF_COMM_BURST_WINDOW_MS = 1000;
 constexpr uint8_t CRSF_COMM_BURST_THRESHOLD = 3;
 constexpr unsigned long CRSF_SERVICE_FRAME_GAP_MS = 100;
+constexpr unsigned long CRSF_BOOTSTRAP_SERVICE_REPLY_TIMEOUT_MS = 250;
 
 static bool isLikelySyncByte(uint8_t value)
 {
@@ -33,6 +34,12 @@ static bool isLikelySyncByte(uint8_t value)
         return false;
     }
 }
+
+#if defined(REMOTE_DBG) && defined(REMOTE_DBG_CRSF_BUS)
+constexpr bool CRSF_BUS_DEBUG_ENABLED = true;
+#else
+constexpr bool CRSF_BUS_DEBUG_ENABLED = false;
+#endif
 
 }
 
@@ -65,6 +72,7 @@ void ELRSCrsfTransport::begin(ELRSCrsfTransportHal &hal, const ELRSCrsfTransport
     _status.packetRateHz = _config.packetRateHz;
     _status.invertLine = _config.invertLine;
     _status.debugEnabled = _config.debugEnabled;
+    _status.rawFrameDebugEnabled = _config.rawFrameDebugEnabled;
     _status.oeActiveLow = _config.oeActiveLow;
     _status.telemetryActive = false;
     _status.replyActive = false;
@@ -141,7 +149,7 @@ void ELRSCrsfTransport::loop(ELRSCrsfTransportHal &hal, unsigned long now, unsig
     if(nowUs >= _nextTxAtUs) {
         if(_haveServiceFrame && (!_lastServiceTxAt || (now - _lastServiceTxAt >= CRSF_SERVICE_FRAME_GAP_MS))) {
             sendFrame(hal, _serviceFrame, _serviceFrameLen, now, nowUs, "ELRS/CRSF CFG", true);
-            _serviceReplyHoldoffUntil = now + _config.replyTimeoutMs;
+            _serviceReplyHoldoffUntil = now + effectiveReplyTimeoutMs(true);
             _haveServiceFrame = false;
             _serviceFrameLen = 0;
             _lastServiceTxAt = now;
@@ -176,7 +184,9 @@ void ELRSCrsfTransport::sendFrame(ELRSCrsfTransportHal &hal, const uint8_t *fram
         return;
     }
 
-    if(_status.debugEnabled) {
+    bool logRawFrame = shouldLogRawFrame(frame, frameLen, resetReplyWindow);
+
+    if(logRawFrame) {
         logf(hal, "ELRS/CRSF transport: OE on @%luus", nowUs);
         logFrame(hal, prefix, frame, frameLen, true);
     }
@@ -186,23 +196,92 @@ void ELRSCrsfTransport::sendFrame(ELRSCrsfTransportHal &hal, const uint8_t *fram
     hal.serialFlush();
     hal.setDriverEnabled(false);
 
+    if(CRSF_BUS_DEBUG_ENABLED && resetReplyWindow) {
+        logf(hal, "ELRS/CRSF bus: tx frame len=%u flushDone=%luus",
+             (unsigned)frameLen,
+             hal.microsNow());
+    }
+
     memcpy(_lastTxFrame, frame, frameLen);
     _lastTxFrameLen = frameLen;
-    _echoSuppressUntil = now + 5;
+    {
+        const unsigned long replyTimeoutMs = effectiveReplyTimeoutMs(resetReplyWindow);
+        _echoSuppressUntil = now + ((replyTimeoutMs > 5U) ? replyTimeoutMs : 5U);
+    }
 
-    if(_status.debugEnabled) {
+    if(logRawFrame) {
         logf(hal, "ELRS/CRSF transport: OE off @%luus", nowUs);
     }
 
     _status.lastTxAt = now;
-    if(resetReplyWindow || !_waitingForReply) {
+    if(resetReplyWindow) {
+        size_t drained = drainExactEchoFrame(hal, frame, frameLen);
+        const unsigned long replyTimeoutMs = effectiveReplyTimeoutMs(true);
+        if(CRSF_BUS_DEBUG_ENABLED) {
+            logf(hal, "ELRS/CRSF bus: drained local echo bytes=%u done=%luus",
+                 (unsigned)drained,
+                 hal.microsNow());
+            if(_rxFrameLen > 0) {
+                logf(hal, "ELRS/CRSF bus: first non-echo rx byte=0x%02X at %luus",
+                     (unsigned)_rxFrame[0],
+                     hal.microsNow());
+            }
+        }
         _waitingForReply = true;
         _replySeenForTx = false;
-        _replyDeadlineAt = now + _config.replyTimeoutMs;
+        _replyDeadlineAt = now + replyTimeoutMs;
     }
     do {
         advanceNextTxDeadline();
     } while(_nextTxAtUs <= nowUs);
+}
+
+size_t ELRSCrsfTransport::drainExactEchoFrame(ELRSCrsfTransportHal &hal, const uint8_t *frame, size_t frameLen)
+{
+    size_t matched = 0;
+
+    if(!frame || !frameLen) {
+        return 0;
+    }
+
+    while((matched < frameLen) && hal.serialAvailable()) {
+        int ch = hal.serialRead();
+        if(ch < 0) {
+            break;
+        }
+
+        if((uint8_t)ch != frame[matched]) {
+            _rxFrame[0] = (uint8_t)ch;
+            _rxFrameLen = 1;
+            return matched;
+        }
+
+        matched++;
+    }
+
+    return matched;
+}
+
+unsigned long ELRSCrsfTransport::effectiveReplyTimeoutMs(bool resetReplyWindow) const
+{
+    if(resetReplyWindow && !_status.everReplied && _config.replyTimeoutMs < CRSF_BOOTSTRAP_SERVICE_REPLY_TIMEOUT_MS) {
+        return CRSF_BOOTSTRAP_SERVICE_REPLY_TIMEOUT_MS;
+    }
+
+    return _config.replyTimeoutMs;
+}
+
+bool ELRSCrsfTransport::shouldLogRawFrame(const uint8_t *frame, size_t frameLen, bool resetReplyWindow) const
+{
+    if(!_status.rawFrameDebugEnabled || !frame || frameLen < 3) {
+        return false;
+    }
+
+    if(resetReplyWindow) {
+        return true;
+    }
+
+    return (frame[2] != CRSF_FRAME_RC_CHANNELS_PACKED);
 }
 
 const ELRSCrsfTransportConfig &ELRSCrsfTransport::config() const
@@ -274,7 +353,7 @@ void ELRSCrsfTransport::pollFrames(ELRSCrsfTransportHal &hal, unsigned long now)
                 _status.lastRawFrame.length = (uint8_t)expectLen;
                 _status.lastRawFrame.crcValid = crcValid;
 
-                if(_status.debugEnabled) {
+                if(shouldLogRawFrame(_rxFrame, expectLen, false)) {
                     logFrame(hal, "ELRS/CRSF RX", _rxFrame, expectLen, crcValid);
                 }
 
@@ -418,7 +497,7 @@ void ELRSCrsfTransport::updateState(ELRSCrsfTransportHal &hal, unsigned long now
         return;
     }
 
-    if(!_status.replyActive && (_status.commCode == ELRS_COMM_NONE)) {
+    if(_haveTelemetry && !_status.replyActive && (_status.commCode == ELRS_COMM_NONE)) {
         setCommCode(ELRS_COMM_RLS);
         log(hal, "ELRS/CRSF transport: replies lost; outbound control may still be active");
     }

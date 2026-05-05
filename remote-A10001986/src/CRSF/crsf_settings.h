@@ -49,7 +49,18 @@
  * SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
+#ifdef HAVE_CRSF
+#include "elrs_crsf_shared.h"
+#include "elrs_input_model.h"
+#endif
 
 void loadELRSCalibration(ELRSAxisCalibrationData *cal, int count = ELRS_GIMBAL_AXIS_COUNT);
 void saveELRSCalibration(const ELRSAxisCalibrationData *cal, int count = ELRS_GIMBAL_AXIS_COUNT);
+void loadELRSInputProfiles(ELRSInputAxisProfile *profiles, int count = ELRS_GIMBAL_AXIS_COUNT);
+void saveELRSInputProfiles(const ELRSInputAxisProfile *profiles, int count = ELRS_GIMBAL_AXIS_COUNT);
+ELRSGimbalRouting loadELRSGimbalRouting();
+void saveELRSGimbalRouting(const ELRSGimbalRouting &routing);
+void loadELRSInputConfig(ELRSInputAxisProfile *profiles, int count, ELRSGimbalRouting *routing = NULL);
+bool saveELRSInputConfig(const ELRSInputAxisProfile *profiles, int count, const ELRSGimbalRouting *routing = NULL);
+bool readELRSCurrentRawAxes(int16_t axes[ELRS_GIMBAL_AXIS_COUNT]);
 

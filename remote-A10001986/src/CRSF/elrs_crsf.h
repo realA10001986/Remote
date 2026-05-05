@@ -22,6 +22,8 @@ class ELRSCrsfMode : private ELRSCrsfHost {
             uint8_t telemetryRatio,
             uint8_t maxPower,
             uint8_t dynamicPower,
+            const ELRSInputAxisProfile *axisProfiles,
+            const ELRSGimbalRouting &inputRouting,
             ButtonPack *buttonPack,
             bool haveButtonPack,
             remDisplay *display,
@@ -40,6 +42,7 @@ class ELRSCrsfMode : private ELRSCrsfHost {
         bool isCalibrating() const;
         bool fakePowerOn() const;
         ELRSCrsfStatus getStatus() const;
+        bool readCurrentRawAxes(int16_t axes[ELRS_GIMBAL_AXIS_COUNT]);
 
     private:
         bool initAds1015();
@@ -55,6 +58,7 @@ class ELRSCrsfMode : private ELRSCrsfHost {
         void serialFlush() override;
         void setDriverEnabled(bool enabled) override;
         void discardSerialInput() override;
+        unsigned long microsNow() override;
 
         bool sampleAxes(int16_t axes[ELRS_GIMBAL_AXIS_COUNT]) override;
         bool readFakePowerSwitch() override;
@@ -94,8 +98,12 @@ class ELRSCrsfMode : private ELRSCrsfHost {
         bool _levelMeterOnFakePower = false;
         bool _haveAds = false;
         bool _oeActiveLow = true;
+        bool _haveLoggedAxes = false;
+        bool _haveFilteredAxes = false;
 
         int16_t _rawAxes[ELRS_GIMBAL_AXIS_COUNT] = { 1024, 1024, 1024, 1024 };
+        int16_t _filteredAxes[ELRS_GIMBAL_AXIS_COUNT] = { 1024, 1024, 1024, 1024 };
+        int16_t _lastLoggedAxes[ELRS_GIMBAL_AXIS_COUNT] = { 1024, 1024, 1024, 1024 };
 };
 
 extern ELRSCrsfMode elrsMode;

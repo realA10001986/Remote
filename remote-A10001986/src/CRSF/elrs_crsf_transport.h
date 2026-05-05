@@ -24,6 +24,7 @@ struct ELRSCrsfTransportConfig {
     uint16_t telemetryTimeoutMs = 2000;
     uint16_t replyTimeoutMs = 20;
     bool debugEnabled = false;
+    bool rawFrameDebugEnabled = false;
     bool oeActiveLow = true;
 };
 
@@ -39,6 +40,7 @@ struct ELRSCrsfTransportStatus {
     uint16_t packetRateHz = ELRS_PACKET_RATE_DEFAULT;
     bool invertLine = false;
     bool debugEnabled = false;
+    bool rawFrameDebugEnabled = false;
     bool oeActiveLow = true;
     bool telemetryActive = false;
     bool replyActive = false;
@@ -66,6 +68,7 @@ class ELRSCrsfTransportHal {
         virtual void serialFlush() = 0;
         virtual void setDriverEnabled(bool enabled) = 0;
         virtual void discardSerialInput() = 0;
+        virtual unsigned long microsNow() = 0;
 };
 
 class ELRSCrsfTransportSink {
@@ -106,9 +109,17 @@ class ELRSCrsfTransport {
         void updateState(ELRSCrsfTransportHal &hal, unsigned long now);
         void resetTxScheduler(unsigned long nowUs);
         void advanceNextTxDeadline();
+        size_t drainExactEchoFrame(ELRSCrsfTransportHal &hal, const uint8_t *frame, size_t frameLen);
+        unsigned long effectiveReplyTimeoutMs(bool resetReplyWindow) const;
+#ifndef REMOTE_CRSF_NO_RAW_DUMPS
+        bool shouldLogRawFrame(const uint8_t *frame, size_t frameLen, bool resetReplyWindow) const;
         void log(ELRSCrsfTransportHal &hal, const char *message) const;
         void logf(ELRSCrsfTransportHal &hal, const char *fmt, ...) const;
         void logFrame(ELRSCrsfTransportHal &hal, const char *prefix, const uint8_t *frame, size_t frameSize, bool crcValid) const;
+#else
+        void log(ELRSCrsfTransportHal &hal, const char *message) const;
+        void logf(ELRSCrsfTransportHal &hal, const char *fmt, ...) const;
+#endif
 
         static const char *commCodeName(uint8_t code);
 

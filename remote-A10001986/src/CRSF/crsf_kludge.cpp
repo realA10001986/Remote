@@ -50,7 +50,6 @@
  */
 
 #include "../../remote_global.h"
-
 #ifdef HAVE_CRSF
 
 #include <Arduino.h>
@@ -69,16 +68,70 @@ extern uint32_t calcHash(uint8_t *buf, int len);
 extern void     wifiOnFakePowerOn(bool showWait);
 
 // CRSF settings
-// Do not change or insert new values, this
-// struct is saved as such. Append new stuff.
-static struct [[gnu::packed]] {
-    ELRSAxisCalibrationData elrsAxis[ELRS_GIMBAL_AXIS_COUNT] = {
-        { 0, 1024, 2047 },
-        { 0, 1024, 2047 },
-        { 0, 1024, 2047 },
-        { 0, 1024, 2047 }
-    };
-} crsfSettings;
+// Stored as a raw blob in /crsfcfg. Keep compatibility in mind when changing
+// this layout because older builds may have written legacy calibration-only data.
+struct [[gnu::packed]] ELRSCrsfSettingsBlob {
+    ELRSInputAxisProfile axisProfile[ELRS_GIMBAL_AXIS_COUNT];
+    ELRSGimbalRouting gimbalRouting;
+};
+
+struct [[gnu::packed]] ELRSCrsfLegacySettingsBlob {
+    ELRSAxisCalibrationData elrsAxis[ELRS_GIMBAL_AXIS_COUNT];
+};
+
+static ELRSCrsfSettingsBlob defaultCrsfSettings()
+{
+    ELRSCrsfSettingsBlob settings;
+    const ELRSInputAxisProfile defaultProfile = elrsDefaultInputAxisProfile();
+
+    for(int i = 0; i < ELRS_GIMBAL_AXIS_COUNT; i++) {
+        settings.axisProfile[i] = defaultProfile;
+    }
+    settings.gimbalRouting = elrsDefaultGimbalRouting();
+
+    return settings;
+}
+
+static ELRSAxisCalibrationData profileToCalibration(const ELRSInputAxisProfile &profile)
+{
+    ELRSAxisCalibrationData calibration;
+
+    calibration.minimum = profile.minimum;
+    calibration.center = profile.center;
+    calibration.maximum = profile.maximum;
+
+    return calibration;
+}
+
+static ELRSInputAxisProfile calibrationToProfile(const ELRSAxisCalibrationData &calibration)
+{
+    ELRSInputAxisProfile profile = elrsDefaultInputAxisProfile();
+
+    profile.minimum = calibration.minimum;
+    profile.center = calibration.center;
+    profile.maximum = calibration.maximum;
+
+    return profile;
+}
+
+static void sanitizeCrsfSettings(ELRSCrsfSettingsBlob &settings)
+{
+    for(int i = 0; i < ELRS_GIMBAL_AXIS_COUNT; i++) {
+        settings.axisProfile[i] = elrsSanitizeInputAxisProfile(settings.axisProfile[i]);
+    }
+    settings.gimbalRouting = elrsSanitizeGimbalRouting(settings.gimbalRouting);
+}
+
+static int clampProfileCount(int count)
+{
+    if(count < 0) {
+        return 0;
+    }
+
+    return min(count, ELRS_GIMBAL_AXIS_COUNT);
+}
+
+static ELRSCrsfSettingsBlob crsfSettings = defaultCrsfSettings();
 
 static int      crsfSetValidBytes = 0;
 static uint32_t crsfSettingsHash  = 0;
@@ -155,7 +208,25 @@ uint8_t crsf_getDynamicPower(int idx)
 
 void crsf_load_settings()
 {
-    if(loadConfigFile(crsfCfgName, (uint8_t *)&crsfSettings, sizeof(crsfSettings), crsfSetValidBytes, 0)) {
+    uint8_t rawSettings[sizeof(crsfSettings)] = { 0 };
+
+    crsfSettings = defaultCrsfSettings();
+    if(loadConfigFile(crsfCfgName, rawSettings, sizeof(rawSettings), crsfSetValidBytes, 0)) {
+        if(crsfSetValidBytes <= (int)sizeof(ELRSCrsfLegacySettingsBlob)) {
+            ELRSCrsfLegacySettingsBlob legacySettings = {};
+            int legacyAxisCount;
+
+            memcpy(&legacySettings, rawSettings, min(crsfSetValidBytes, (int)sizeof(legacySettings)));
+            legacyAxisCount = clampProfileCount(crsfSetValidBytes / (int)sizeof(ELRSAxisCalibrationData));
+            for(int i = 0; i < legacyAxisCount; i++) {
+                crsfSettings.axisProfile[i] = calibrationToProfile(legacySettings.elrsAxis[i]);
+            }
+        } else if(crsfSetValidBytes < (int)sizeof(crsfSettings)) {
+            memcpy(&crsfSettings, rawSettings, crsfSetValidBytes);
+        } else {
+            memcpy(&crsfSettings, rawSettings, sizeof(crsfSettings));
+        }
+        sanitizeCrsfSettings(crsfSettings);
         crsfSettingsHash = calcHash((uint8_t *)&crsfSettings, sizeof(crsfSettings));
         haveCRSFSettings = true;
     }
@@ -182,9 +253,9 @@ void loadELRSCalibration(ELRSAxisCalibrationData *cal, int count)
         return;
     }
 
-    count = min(count, ELRS_GIMBAL_AXIS_COUNT);
+    count = clampProfileCount(count);
     for(int i = 0; i < count; i++) {
-        cal[i] = crsfSettings.elrsAxis[i];
+        cal[i] = profileToCalibration(crsfSettings.axisProfile[i]);
     }
 }
 
@@ -194,11 +265,85 @@ void saveELRSCalibration(const ELRSAxisCalibrationData *cal, int count)
         return;
     }
 
-    count = min(count, ELRS_GIMBAL_AXIS_COUNT);
+    count = clampProfileCount(count);
     for(int i = 0; i < count; i++) {
-        crsfSettings.elrsAxis[i] = cal[i];
+        crsfSettings.axisProfile[i].minimum = cal[i].minimum;
+        crsfSettings.axisProfile[i].center = cal[i].center;
+        crsfSettings.axisProfile[i].maximum = cal[i].maximum;
     }
+    sanitizeCrsfSettings(crsfSettings);
     crsf_save_settings(true);
+}
+
+void loadELRSInputProfiles(ELRSInputAxisProfile *profiles, int count)
+{
+    if(!profiles) {
+        return;
+    }
+
+    count = clampProfileCount(count);
+    for(int i = 0; i < count; i++) {
+        profiles[i] = crsfSettings.axisProfile[i];
+    }
+}
+
+void saveELRSInputProfiles(const ELRSInputAxisProfile *profiles, int count)
+{
+    if(!profiles) {
+        return;
+    }
+
+    count = clampProfileCount(count);
+    for(int i = 0; i < count; i++) {
+        crsfSettings.axisProfile[i] = elrsSanitizeInputAxisProfile(profiles[i]);
+    }
+    sanitizeCrsfSettings(crsfSettings);
+    crsf_save_settings(true);
+}
+
+ELRSGimbalRouting loadELRSGimbalRouting()
+{
+    return crsfSettings.gimbalRouting;
+}
+
+void loadELRSInputConfig(ELRSInputAxisProfile *profiles, int count, ELRSGimbalRouting *routing)
+{
+    if(profiles) {
+        loadELRSInputProfiles(profiles, count);
+    }
+
+    if(routing) {
+        *routing = crsfSettings.gimbalRouting;
+    }
+}
+
+void saveELRSGimbalRouting(const ELRSGimbalRouting &routing)
+{
+    crsfSettings.gimbalRouting = elrsSanitizeGimbalRouting(routing);
+    sanitizeCrsfSettings(crsfSettings);
+    crsf_save_settings(true);
+}
+
+bool saveELRSInputConfig(const ELRSInputAxisProfile *profiles, int count, const ELRSGimbalRouting *routing)
+{
+    if(profiles) {
+        count = clampProfileCount(count);
+        for(int i = 0; i < count; i++) {
+            crsfSettings.axisProfile[i] = elrsSanitizeInputAxisProfile(profiles[i]);
+        }
+    }
+
+    if(routing) {
+        crsfSettings.gimbalRouting = elrsSanitizeGimbalRouting(*routing);
+    }
+
+    sanitizeCrsfSettings(crsfSettings);
+    return crsf_save_settings(true);
+}
+
+bool readELRSCurrentRawAxes(int16_t axes[ELRS_GIMBAL_AXIS_COUNT])
+{
+    return elrsMode.readCurrentRawAxes(axes);
 }
 
 bool crsf_begin(
@@ -219,12 +364,19 @@ bool crsf_begin(
             bool levelMeterOnFakePower,
             void (*fpOnWifiHandler)(bool))
 {
+    ELRSInputAxisProfile axisProfiles[ELRS_GIMBAL_AXIS_COUNT];
+    ELRSGimbalRouting inputRouting;
+
+    loadELRSInputConfig(axisProfiles, ELRS_GIMBAL_AXIS_COUNT, &inputRouting);
+
     return elrsMode.begin(
             packetRateHz,
             speedDisplayUnits,
             telemetryRatio,
             maxPower,
             dynamicPower,
+            axisProfiles,
+            inputRouting,
             buttonPack,
             haveButtonPack,
             remdisplay,

@@ -4,6 +4,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include "elrs_input_model.h"
 #include "elrs_crsf_shared.h"
 #include "elrs_crsf_transport.h"
 
@@ -30,6 +31,7 @@ struct ELRSCrsfStatus {
     bool everSynced = false;
     bool invertLine = false;
     bool debugEnabled = false;
+    bool rawFrameDebugEnabled = false;
     unsigned long lastTxAt = 0;
     unsigned long lastReplyAt = 0;
     unsigned long lastRxAt = 0;
@@ -80,6 +82,8 @@ struct ELRSCrsfCoreConfig {
     uint8_t telemetryRatio = ELRS_TLM_RATIO_DEFAULT;
     uint8_t maxPower = ELRS_MAX_POWER_DEFAULT;
     uint8_t dynamicPower = ELRS_DYNAMIC_POWER_DEFAULT;
+    ELRSInputAxisProfile axisProfiles[ELRS_GIMBAL_AXIS_COUNT] = {};
+    ELRSGimbalRouting inputRouting = {};
     ELRSCrsfTransportConfig transport;
 };
 
@@ -144,8 +148,13 @@ class ELRSCrsfCore : private ELRSCrsfTransportSink {
         const char *getCalibrationPrompt() const;
 
         void updateChannels(unsigned long now, bool fakePowerOn, bool stopOn, bool buttonAOn, bool buttonBOn, uint8_t packStates);
+        void resetChannels(uint16_t defaultTicks);
+        void writeGimbalChannels(bool safeOutputs);
+        void writeGimbalChannel(uint8_t channel, uint16_t ticks);
+        void writeFixedChannelIfUnclaimed(uint8_t channel, uint16_t ticks);
+        bool channelClaimedByGimbal(uint8_t channel) const;
+        uint16_t safeAxisTicks(uint8_t axis) const;
         uint16_t axisToTicks(uint8_t axis) const;
-        uint16_t mapTicks(int16_t raw, int16_t inMin, int16_t inMax, uint16_t outMin, uint16_t outMax) const;
 
         void applyIdleOutputs(ELRSCrsfHost &host, bool fakePowerOn);
         void updateBatteryWarning(ELRSCrsfHost &host, unsigned long now, int battWarn, bool fakePowerOn);
@@ -172,11 +181,13 @@ class ELRSCrsfCore : private ELRSCrsfTransportSink {
         void finishParameterChunk(uint8_t fieldId, const uint8_t *data, size_t len, unsigned long now);
         void applyDiscoveredParameter(uint8_t fieldId, const char *name, uint8_t type, const char *options, uint8_t currentValue);
         bool moduleSettingValueForTarget(uint8_t targetIndex, const char *options, uint8_t *value) const;
+        bool haveAllModuleTargets() const;
         void showOverlay(const char *text, unsigned long now, unsigned long durationMs);
         void showCommOverlay(const char *text, unsigned long now, unsigned long durationMs);
 
         void log(ELRSCrsfHost &host, const char *message) const;
         void logf(ELRSCrsfHost &host, const char *fmt, ...) const;
+        void debugLogf(const char *fmt, ...) const;
 
         static uint16_t readBE16(const uint8_t *data);
         static size_t copyToken(char *out, size_t outSize, const char *start, size_t len);
@@ -234,6 +245,8 @@ class ELRSCrsfCore : private ELRSCrsfTransportSink {
         uint16_t _channels[16];
         int16_t _rawAxes[ELRS_GIMBAL_AXIS_COUNT];
         ELRSAxisCalibrationData _axisCal[ELRS_GIMBAL_AXIS_COUNT];
+        ELRSInputAxisProfile _axisProfiles[ELRS_GIMBAL_AXIS_COUNT];
+        ELRSGimbalRouting _inputRouting;
         uint8_t _lastPackStates = 0;
 
         uint8_t _linkQuality = 0;
@@ -265,6 +278,7 @@ class ELRSCrsfCore : private ELRSCrsfTransportSink {
         ModuleParameterInfo _moduleTelemetryRatio;
         ModuleParameterInfo _moduleMaxPower;
         ModuleParameterInfo _moduleDynamicPower;
+        ELRSCrsfHost *_logHost = NULL;
 
         bool _calibRaw = false;
         bool _calibPressed = false;

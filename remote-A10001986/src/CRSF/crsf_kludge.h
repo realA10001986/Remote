@@ -81,5 +81,3 @@ bool      crsf_begin(
 void      crsf_loop(int battWarn);
 
 void      csrf_query_status(bool &FPBUnitIsOn);
-
-
