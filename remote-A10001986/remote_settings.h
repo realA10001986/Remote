@@ -188,6 +188,10 @@ void   freeUploadFileNames();
 #define DEF_ELRSTLMRATIO    0
 #define DEF_ELRSMAXPOWER    3
 #define DEF_ELRSDYNPWR      0
+#define DEF_ELRSROLLCH      1
+#define DEF_ELRSPITCHCH     2
+#define DEF_ELRSTHRCH       3
+#define DEF_ELRSYAWCH       4
 #endif
 
 struct Settings {
@@ -273,6 +277,26 @@ struct Settings {
     char elrsTlmRatio[2]    = MS(DEF_ELRSTLMRATIO);
     char elrsMaxPower[2]    = MS(DEF_ELRSMAXPOWER);
     char elrsDynPower[2]    = MS(DEF_ELRSDYNPWR);
+    char elrsRollCh[3]      = MS(DEF_ELRSROLLCH);
+    char elrsPitchCh[3]     = MS(DEF_ELRSPITCHCH);
+    char elrsThrCh[3]       = MS(DEF_ELRSTHRCH);
+    char elrsYawCh[3]       = MS(DEF_ELRSYAWCH);
+    char elrsRollRev[2]     = "0";
+    char elrsPitchRev[2]    = "0";
+    char elrsThrRev[2]      = "0";
+    char elrsYawRev[2]      = "0";
+    char elrsRollLow[6]     = "0";
+    char elrsRollCtr[6]     = "1024";
+    char elrsRollHigh[6]    = "2047";
+    char elrsPitchLow[6]    = "0";
+    char elrsPitchCtr[6]    = "1024";
+    char elrsPitchHigh[6]   = "2047";
+    char elrsThrLow[6]      = "0";
+    char elrsThrCtr[6]      = "1024";
+    char elrsThrHigh[6]     = "2047";
+    char elrsYawLow[6]      = "0";
+    char elrsYawCtr[6]      = "1024";
+    char elrsYawHigh[6]     = "2047";
 #endif
 
     // Kludges for CP
