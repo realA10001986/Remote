@@ -307,10 +307,13 @@ bool REMRotEnc::begin(bool forSpeed, bool newBoard)
         return false;
 
     case REM_RE_TYPE_ADS1X15:
-        buf[0] = 0b01000000;    // mmm = Mode (Single End, AIN0)
-        //         ommmgggc
-        buf[0] |= (newBoard ? GAIN_NEW_BOARD : GAIN_OLD_BOARD);
-        
+        if(newBoard) {
+            buf[0] = 0b01110000 | GAIN_NEW_BOARD;
+            //         ommmgggc                   mmm = Mode (Single End, AIN3)
+        } else {
+            buf[0] = 0b01000000 | GAIN_OLD_BOARD;
+            //         ommmgggc                   mmm = Mode (Single End, AIN0)
+        }
         buf[1] = 0b00000011;   // Comparator stuff (disabled)
         //         dddccccc
         write(ADS_BASE, ADS_CONFIG, &buf[0], 2);
