@@ -669,7 +669,9 @@ static void setupWebServerCallback();
 static void handleUploadDone();
 static void handleUploading();
 static void handleUploadDone();
+#ifdef HAVE_CRSF
 static void handleELRSRawRead();
+#endif
 
 #ifdef REMOTE_HAVEMQTT
 static void strcpyutf8(char *dst, const char *src, unsigned int len);
