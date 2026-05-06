@@ -188,7 +188,6 @@ WiFiManagerParameter *crsfParmArray[] = {
 };
 
 
-
 /*
  * Callback from wifi_loop() for saving settings
  *
@@ -223,18 +222,20 @@ static void crsf_wifi_saveParamsCallback()
     getServerParam("cprv", settings.elrsPitchRev, 1, 0, 1, 0);
     getServerParam("ctrv", settings.elrsThrRev, 1, 0, 1, 0);
     getServerParam("cyrv", settings.elrsYawRev, 1, 0, 1, 0);
-    getServerParam("crrlo", settings.elrsRollLow, 5, 0, 2047, 0);
-    getServerParam("crrct", settings.elrsRollCtr, 5, 0, 2047, 1024);
-    getServerParam("crrhi", settings.elrsRollHigh, 5, 0, 2047, 2047);
-    getServerParam("cptlo", settings.elrsPitchLow, 5, 0, 2047, 0);
-    getServerParam("cptct", settings.elrsPitchCtr, 5, 0, 2047, 1024);
-    getServerParam("cpthi", settings.elrsPitchHigh, 5, 0, 2047, 2047);
-    getServerParam("cthlo", settings.elrsThrLow, 5, 0, 2047, 0);
-    getServerParam("cthct", settings.elrsThrCtr, 5, 0, 2047, 1024);
-    getServerParam("cthhi", settings.elrsThrHigh, 5, 0, 2047, 2047);
-    getServerParam("cywlo", settings.elrsYawLow, 5, 0, 2047, 0);
-    getServerParam("cywct", settings.elrsYawCtr, 5, 0, 2047, 1024);
-    getServerParam("cywhi", settings.elrsYawHigh, 5, 0, 2047, 2047);
+    if(opModeCRSF) {
+        getServerParam("crrlo", settings.elrsRollLow, 5, 0, 2047, 0);
+        getServerParam("crrct", settings.elrsRollCtr, 5, 0, 2047, 1024);
+        getServerParam("crrhi", settings.elrsRollHigh, 5, 0, 2047, 2047);
+        getServerParam("cptlo", settings.elrsPitchLow, 5, 0, 2047, 0);
+        getServerParam("cptct", settings.elrsPitchCtr, 5, 0, 2047, 1024);
+        getServerParam("cpthi", settings.elrsPitchHigh, 5, 0, 2047, 2047);
+        getServerParam("cthlo", settings.elrsThrLow, 5, 0, 2047, 0);
+        getServerParam("cthct", settings.elrsThrCtr, 5, 0, 2047, 1024);
+        getServerParam("cthhi", settings.elrsThrHigh, 5, 0, 2047, 2047);
+        getServerParam("cywlo", settings.elrsYawLow, 5, 0, 2047, 0);
+        getServerParam("cywct", settings.elrsYawCtr, 5, 0, 2047, 1024);
+        getServerParam("cywhi", settings.elrsYawHigh, 5, 0, 2047, 2047);
+    }
 }
 
 
