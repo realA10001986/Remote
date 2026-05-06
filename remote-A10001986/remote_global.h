@@ -16,7 +16,7 @@
  *************************************************************************/
 
 #define REMOTE_VERSION "V1.23.1"              // Do NOT change format.
-#define REMOTE_VERSION_EXTRA "MAY052026"
+#define REMOTE_VERSION_EXTRA "MAY062026"
 
 /*************************************************************************
  ***             Configuration for hardware/peripherals                ***

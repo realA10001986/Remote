@@ -138,6 +138,17 @@
 
 /*  Changelog
  *  
+ *  2026/0x/xx (A10001986) [1.24]
+ *    **********************************************************************************
+ *    ** If updating from below 1.20, please install 1.20 first to have your          **
+ *    ** settings converted. If 1.20 is skipped, some of your settings (static IP,    **
+ *    ** volume, brightness, calibration data, movie mode, coasting, auto-throttle,   **
+ *    ** display TCD speed while off) will be restored to default values. It suffices **
+ *    ** to install 1.20 and boot once; you can then immediately update to a later    **
+ *    ** version.                                                                     **
+ *    ** https://github.com/realA10001986/Remote/releases/tag/V1.20                   **
+ *    **********************************************************************************
+ *    - Compatibility fixes for Control Board 1.7
  *  2026/04/27 (A10001986) [1.23]
  *    **********************************************************************************
  *    ** If updating from below 1.20, please install 1.20 first to have your          **
