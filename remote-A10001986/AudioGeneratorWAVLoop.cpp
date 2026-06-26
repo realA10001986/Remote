@@ -22,7 +22,9 @@
 #include "AudioGeneratorWAVLoop.h"
 
 #define DBG_OUT
+#ifdef HAVE_AUDIO_LOGGER
 //define DBG_OUT audioLogger->printf_P
+#endif
 
 AudioGeneratorWAVLoop::AudioGeneratorWAVLoop()
 {

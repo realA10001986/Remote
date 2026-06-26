@@ -178,7 +178,7 @@ void   freeUploadFileNames();
 
 #define DEF_USE_PWRMON      1     // 1: Use Power Monitor (if present), 0: do not
 #define DEF_BAT_TYPE        0     // 0=3.7/4.2V
-#define DEF_BAT_CAP         2000  // battery capacity per cell
+#define DEF_BAT_CAP         2500  // battery capacity per cell (2500 fits CS-provided battery)
 
 #ifdef HAVE_CRSF
 #define DEF_OPMODE          0     // 0: Prop mode (legacy)  1: CRSF/ELRS mode
@@ -264,6 +264,9 @@ struct Settings {
     char mqttVers[2]        = "0"; // 0 = 3.1.1, 1 = 5.0
     char mqttServer[80]     = "";  // ip or domain [:port]  
     char mqttUser[128]      = "";  // user[:pass] (UTF8)
+    #ifdef REMOTE_HAVEMQTT_MP
+    char pubMP[2]           = "0"; // 1:Publish music player status to bttf/remote/mpstatus, 0: Don't
+    #endif
     char mqttbt[8][128]     = { 0 };  // buttons topics (UTF8)
     char mqttbo[8][64]      = { 0 };  // buttons on message (UTF8)
     char mqttbf[8][64]      = { 0 };  // buttons off message (UTF8)

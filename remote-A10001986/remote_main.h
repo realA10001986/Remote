@@ -86,9 +86,6 @@ void showNumber(int num);
 void allOff();
 void prepareReboot();
 
-void prepareTT();
-void wakeup();
-
 bool switchMusicFolder(uint8_t nmf, bool isSetup = false);
 void waitAudioDone(bool withBTTFN = false);
 
@@ -107,6 +104,21 @@ extern bool haveNewBoard;
 extern bool opModeCRSF;
 #endif
 
+extern uint32_t csf;
+#define CSF_OFF           0x00000001
+#define CSF_TCDINP0       0x00000002
+#define CSF_TCDINP0O      0x00000004
+#define CSF_INTP0         0x00000008
+#define CSF_TT            0x00000010
+#define CSF_CALIBMD       0x00000020
+#define CSF_KEEPCOUNTING  0x00000040
+
+#define CSF_TTP0          0x01000000
+#define CSF_TTP1          0x02000000
+#define CSF_TTP2          0x04000000
+#define CSF_BLOCKSCAN     0x40000000
+#define CSF_BUSY          0x80000000
+
 extern uint32_t myRemID;
 extern bool     remoteAllowed;
 
@@ -122,16 +134,12 @@ extern bool useRotEnc;
 
 extern bool havePwrMon;
 
-extern bool FPBUnitIsOn;
-
 extern uint16_t visMode;
 extern bool autoThrottle;
 extern bool doCoast;
 extern bool movieMode;
 extern bool displayGPSMode;
 extern bool powerMaster;
-
-extern bool TTrunning;
 
 extern bool bttfnTT;
 
@@ -145,14 +153,7 @@ extern uint16_t networkP1;
 extern bool doPrepareTT;
 extern bool doWakeup;
 
-extern bool remBusy;
-
-extern bool     calibMode;
-extern uint16_t tcdIsInP0;
 extern int32_t  throttlePos;
-extern bool     keepCounting;
-
-extern bool blockScan;
 
 extern int     bttfnHaveTCDSSID;
 extern char    TCDSSID[];
