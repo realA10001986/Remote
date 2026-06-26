@@ -205,8 +205,8 @@ The Calibration button needs to be a momentary contact.
 When fake power is on:
 <table>
   <tr><td></td><td>Short press</td><td>Long press</td></tr>
-  <tr><td>Button "O.O"</td><td>Prepare TT<br>or<br><a href="#the-music-player">Music Player</a>: Previous Song<br>(depending on <a href="#-pressing-oo-when-fake-power-on">configuration</a>)</td><td><a href="#the-music-player">Music Player</a>: Play/Stop</td></tr>
-  <tr><td>Button "RESET"</td><td><a href="#the-music-player">Music Player</a>: Next Song</td><td>Toggle Auto-Throttle<br>or<br><a href="#the-music-player">Music Player</a>: Toggle Shuffle<br>(depending on <a href="#-holding-reset-when-fake-power-on">configuration</a>)</td></tr>
+  <tr><td>Button "O.O"</td><td>Prepare TT<br>or<br><a href="#the-music-player">Music Player</a>: Previous track<br>(depending on <a href="#-pressing-oo-when-fake-power-on">configuration</a>)</td><td><a href="#the-music-player">Music Player</a>: Play/Stop</td></tr>
+  <tr><td>Button "RESET"</td><td><a href="#the-music-player">Music Player</a>: Next track</td><td>Toggle Auto-Throttle<br>or<br><a href="#the-music-player">Music Player</a>: Toggle Shuffle<br>(depending on <a href="#-holding-reset-when-fake-power-on">configuration</a>)</td></tr>
 </table>
 
 When fake power is off, the buttons are used to set up audio volume and display brightness:
@@ -278,21 +278,25 @@ To delete a file from the SD card, upload a file whose name is prefixed with "de
 
 For technical reasons, the Remote must reboot after mp3 files are uploaded in this way.
 
-Please remember that the maximum bitrate for mp3 files is 128kbps. Also note that the uploaded file is stored to the root folder of the SD card, so this way of uploading cannot be used to upload songs for the Music Player. 
+Please remember that the maximum bitrate for mp3 files is 128kbps. Also note that the uploaded file is stored to the root folder of the SD card, so this way of uploading cannot be used to upload music files for the Music Player. 
 
 ## The Music Player
 
 The firmware contains a simple music player to play mp3 files located on the SD card. 
 
-To be recognized, your mp3 files need to be organized in music folders named *music0* through *music9*. The folder number is 0 by default, ie the player starts searching for music in folder *music0*. This folder number can be changed in the Config Portal or through the TCD keypad (705x).
+*The maximum bitrate is __128kpbs__. The free [Adapter](https://macroplant.com/adapter/audio-converter) tool can re-encode your mp3 files in batches.*
 
-The names of the audio files must only consist of three-digit numbers, starting at 000.mp3, in consecutive order. No numbers should be left out. Each folder can hold up to 1000 files (000.mp3-999.mp3). *The maximum bitrate is 128kpbs.*
+To be recognized, your mp3 files need to be organized in music folders named *music0* through *music9*. The folder number is 0 by default, i.e. the player starts searching for music in folder *music0*. To select a different folder, select it in the Config Portal ("Settings"), through the TCD (705x) or HA/MQTT (MP_FOLDER_x).
 
-Since manually renaming mp3 files is somewhat cumbersome, the firmware can do this for you - provided you can live with the files being sorted in alphabetical order: Just copy your files with their original filenames to the music folder; upon boot or upon selecting a folder containing such files, they will be renamed following the 3-digit name scheme (as mentioned: in alphabetic order). You can also add files to a music folder later, they will be renamed properly; when you do so, delete the file "TCD_DONE.TXT" from the music folder on the SD card so that the firmware knows that something has changed. The renaming process can take a while (11 minutes for 1000 files in bad cases). Mac users are advised to delete the ._ files from the SD before putting it back into the control board as this speeds up the process. _While the renaming is in progress, the Remote's display shows how many files are still left to be processed._
+The names of the audio files must only consist of three-digit numbers, starting at 000.mp3, in consecutive order. No numbers should be left out. Each folder can hold up to 1000 files (000.mp3-999.mp3). 
 
-To start and stop music playback, hold "O.O" for 2 seconds. Briefly pressing "O.O" jumps to the previous song, pressing "RESET" to the next one. (The same can be achieved by entering codes on the TCD's keypad: 7002 = previous song, 7005 = play/stop, 7008 = next song).
+Since manually renaming mp3 files is somewhat cumbersome, the firmware can do this for you: Just copy your files with their original filenames to a music folder of your choice; when selecting that folder, the files will be sorted alphabetically and renamed according to the 3-digit name scheme. (If you want your tracks in a specific order, you must rename them, for instance by inserting a letter or number at the start.) The renaming process can take a while (11 minutes for 1000 files in bad cases). Mac users are advised to delete the ._ files from the SD before putting it back into the Dash Gauges as this speeds up the process. While the renaming is in progress, the Remote's display shows how many files are still left to be processed.
 
-By default, the songs are played in order, starting at 000.mp3, followed by 001.mp3 and so on. Holding "RESET" toggles Shuffle mode. Shuffle mode is saved and persistent accross reboots.
+To add files to a music folder later, just copy them to the folder and delete the file "TCD_DONE.TXT" (so that the firmware knows that something has changed). 
+
+To start and stop music playback, hold "O.O" for 2 seconds. Briefly pressing "O.O" jumps to the previous track, pressing "RESET" to the next one. (The same can be achieved by entering codes on the TCD's keypad: 7002 = previous track, 7005 = play/stop, 7008 = next track).
+
+By default, the tracks are played in order, starting at 000.mp3, followed by 001.mp3 and so on. Holding "RESET" toggles Shuffle mode. Shuffle mode is saved and persistent accross reboots.
 
 See [here](#buttons-oo-and-reset) and [here](#tcd-remote-command-reference) for a list of controls of the music player.
 
@@ -368,8 +372,8 @@ You can use BTTF-Network and MQTT at the [same time](#receive-commands-from-time
      <td align="left"<td>7063&#9166;</td>
     </tr>
     <tr>
-     <td align="left">Set volume level (00-19)</td>
-     <td align="left">7300&#9166; - 7319&#9166;</td>
+     <td align="left">Set volume level (00-20)</td>
+     <td align="left">7300&#9166; - 7320&#9166;</td>
     </tr>
   <tr>
      <td align="left">Enable / disable click sound</td>
@@ -384,11 +388,11 @@ You can use BTTF-Network and MQTT at the [same time](#receive-commands-from-time
      <td align="left">7005&#9166;</td>
     </tr>
     <tr>
-     <td align="left"><a href="#the-music-player">Music Player</a>: Previous song</td>
+     <td align="left"><a href="#the-music-player">Music Player</a>: Previous track</td>
      <td align="left">7002&#9166;</td>
     </tr>
     <tr>
-     <td align="left"><a href="#the-music-player">Music Player</a>: Next song</td>
+     <td align="left"><a href="#the-music-player">Music Player</a>: Next track</td>
      <td align="left">7008&#9166;</td>
     </tr>
     <tr>
@@ -404,11 +408,11 @@ You can use BTTF-Network and MQTT at the [same time](#receive-commands-from-time
      <td align="left">7555&#9166;</td>
     </tr> 
     <tr>
-     <td align="left"><a href="#the-music-player">Music Player</a>: Go to song 0</td>
+     <td align="left"><a href="#the-music-player">Music Player</a>: Go to track 0</td>
      <td align="left">7888&#9166;</td>
     </tr>
     <tr>
-     <td align="left"><a href="#the-music-player">Music Player</a>: Go to song xxx</td>
+     <td align="left"><a href="#the-music-player">Music Player</a>: Go to track xxx</td>
      <td align="left">7888xxx&#9166;</td>
     </tr>
     <tr>
@@ -535,11 +539,13 @@ The Remote can be controlled through messages sent to topic **bttf/remote/cmd**.
 - DISPTCDSPD_ON, DISPTCDSPD_OFF: Enable/disable [speed display while fake-off](#-display-tcd-speed-when-fake-off)
 - MP_PLAY: Starts the [Music Player](#the-music-player)
 - MP_STOP: Stops the [Music Player](#the-music-player)
-- MP_NEXT: Jump to next song
-- MP_PREV: Jump to previous song
+- MP_NEXT: Jump to next track
+- MP_PREV: Jump to previous track
 - MP_SHUFFLE_ON: Enables shuffle mode in [Music Player](#the-music-player)
 - MP_SHUFFLE_OFF: Disables shuffle mode in [Music Player](#the-music-player)
 - MP_FOLDER_x: x being 0-9, set folder number for [Music Player](#the-music-player)
+- VOLUME_UP, VOLUME_DOWN: Increase/decrease volume by a notch
+- VOLUME_SET_x: Set volume to x% (x=0-100)
 - PLAYKEY_x: Play keyX.mp3 (from SD card), X being in the range from 1 to 9.
 - PLAYKEY_xL: Play keyXl.mp3 (from SD card), X being in the range from 1 to 9.
 - STOPKEY: Stop playback of keyX file. Does nothing if no keyX file is currently played back.
@@ -859,7 +865,7 @@ This selects what happens when you hold the O.O or RESET button for 2 seconds wh
 
 This selects what happens when you (briefly) press the O.O button when Fake-Power is on:
 
-- _Plays previous song in Music Player_: As it says, as part of Music Player control, O.O jumps to the previous song.
+- _Plays previous track in Music Player_: As it says, as part of Music Player control, O.O jumps to the previous track.
 - _Makes throttle-up trigger a time travel_: Briefly pressing O.O prepares a Time Travel, which is then triggered when pushing the throttle stick upward.
 
 ##### &#9193; Holding RESET when Fake-Power on
