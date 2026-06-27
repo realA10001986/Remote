@@ -520,6 +520,10 @@ Remarks:
 
 ## Home Assistant / MQTT
 
+By means of MQTT, the Remote can
+- send pre-programmed messages to pre-programmed topics on User button/switch activation, and
+- be remote controlled through commands sent to **bttf/remote/cmd**.
+
 The Remote supports MQTT protocol versions 3.1.1 and 5.0.
 
 ### Send messages through User Buttons
