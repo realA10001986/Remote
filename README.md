@@ -520,7 +520,7 @@ Remarks:
 
 ## Home Assistant / MQTT
 
-The Remote supports MQTT protocol versions 3.1.1 and 5.0 for the following features:
+The Remote supports MQTT protocol versions 3.1.1 and 5.0.
 
 ### Send messages through User Buttons
 
@@ -560,12 +560,6 @@ To toggle movie/linear mode (7060), issue the following command: **INJECT_7060**
 To play "key2.mp3" (7502), issue **INJECT_7502**
 
 To select the 'music1' folder (7051), issue **INJECT_7051**
-
-### Receive commands from Time Circuits Display
-
-If both TCD and Remote are connected to the same broker, and the option **_Publish time travel and alarm events_** is checked on the TCD's side, the Remote will receive information on time travel and alarm and play their sequences in sync with the TCD. Unlike BTTFN, however, no other communication takes place. The actual remote controlling requires a BTTFN connection.
-
-MQTT and BTTFN can co-exist. However, the TCD only sends out time travel and alarm notifications through either MQTT or BTTFN, never both. If you have other MQTT-aware devices listening to the TCD's public topic (bttf/tcd/pub) in order to react to time travel or alarm messages, use MQTT (ie check **_Publish time travel and alarm events_**). If only BTTFN-aware devices are to be used, uncheck this option to use BTTFN as it has less latency.
 
 ### Setup
 
