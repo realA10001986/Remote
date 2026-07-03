@@ -349,8 +349,6 @@ Afterwards, the Remote and the TCD can communicate wirelessly and
 - the Remote can be remote controlled through the TCD's keypad (command codes 7xxx; see below),
 - the Remote can - while fake powered off - display the TCD's speed (eg from GPS).
 
-You can use BTTF-Network and MQTT at the [same time](#receive-commands-from-time-circuits-display).
-
 ### TCD remote command reference
 
 <table>
