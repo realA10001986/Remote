@@ -216,7 +216,7 @@ When fake power is off, the buttons are used to set up audio volume and display 
   <tr><td>Button "RESET"</td><td>Volume down</td><td>Brightness down<br>or<br>Release TCD Fake-Power control</td></tr>
 </table>
 
-[Here](https://github.com/realA10001986/Remote/blob/main/CheatSheet.pdf) is a cheat sheet for printing or screen-use. (Note that MacOS' preview application has a bug that scrambles the links in the document. Acrobat Reader does it correctly.)
+[Here](https://github.com/realA10001986/Remote/blob/main/CheatSheet.pdf) is a cheat sheet for printing or screen-use.
 
 ### User Buttons
 
@@ -498,7 +498,7 @@ Afterwards, the Remote and the TCD can communicate wirelessly and
 1: Board 1.6M or >= 1.7 required; if LiPo battery is properly connected to battery monitor.
 2: Not supported through HA/MQTT [_INJECT_](#the-inject_x-command) command
 
-[Here](CheatSheet.pdf) is a cheat sheet for printing or screen-use. (Note that MacOS' preview application has a bug that scrambles the links in the document. Acrobat Reader does it correctly.)
+[Here](CheatSheet.pdf) is a cheat sheet for printing or screen-use.
 
 ### Controlling TCD Fake-Power
 
