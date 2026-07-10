@@ -57,18 +57,20 @@
 
 // Default volume (index)
 #define DEFAULT_VOLUME 6
+#define VOL_LEVELS 21
 
-#define PA_LOOP    0x0001
-#define PA_INTRMUS 0x0002
-#define PA_ALLOWSD 0x0004
-#define PA_DYNVOL  0x0008
-#define PA_NOINTR  0x0010
-#define PA_WAV     0x0020
-#define PA_THRUP   0x0040
-#define PA_KLONG   0x0080
+#define PA_LOOP    0x00001
+#define PA_INTRMUS 0x00002
+#define PA_ALLOWSD 0x00004
+#define PA_DYNVOL  0x00008
+#define PA_NOINTR  0x00010
+#define PA_WAV     0x00020
+#define PA_THRUP   0x00040
+#define PA_KLONG   0x00080
 // upper 8 bits all taken
 #define PA_MASKA   (PA_LOOP|PA_INTRMUS|PA_ALLOWSD|PA_DYNVOL|PA_NOINTR)
 #define PA_KMASK   0x1ff80
+#define PA_MUSIC   0x20000
 
 void audio_setup();
 void audio_loop();
@@ -92,13 +94,25 @@ bool append_pending();
 
 void     mp_init(bool isSetup);
 void     mp_play(bool forcePlay = true);
-bool     mp_stop();
+bool     mp_stop(bool forceStatus = false);
 void     mp_next(bool forcePlay = false);
 void     mp_prev(bool forcePlay = false);
 int      mp_gotonum(int num, bool force = false);
 void     mp_makeShuffle(bool enable);
 int      mp_checkForFolder(int num);
 uint8_t* m(uint8_t *a, uint32_t s, int e);
+#ifdef REMOTE_HAVEMQTT_MP
+void     mp_sendStatus(int force = 0);
+#endif
+
+typedef struct {
+    int state;
+    int curVolume;
+    int curTrack;
+    int maxMusic;
+    int mpShuffle;
+} Aud_State;
+extern Aud_State aud_state;
 
 extern bool audioInitDone;
 extern bool audioMute;
@@ -107,8 +121,7 @@ extern bool playClicks;
 
 extern bool haveMusic;
 extern bool mpActive;
-extern bool mpShuffle;
 
-extern uint8_t curSoftVol;
+extern int8_t mfstatus[];
 
 #endif

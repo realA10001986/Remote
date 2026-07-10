@@ -138,7 +138,7 @@
 
 /*  Changelog
  *  
- *  2026/0x/xx (A10001986) [1.24]
+ *  2026/06/26 (A10001986) [1.24]
  *    **********************************************************************************
  *    ** If updating from below 1.20, please install 1.20 first to have your          **
  *    ** settings converted. If 1.20 is skipped, some of your settings (static IP,    **
@@ -148,7 +148,12 @@
  *    ** version.                                                                     **
  *    ** https://github.com/realA10001986/Remote/releases/tag/V1.20                   **
  *    **********************************************************************************
- *    - Compatibility fixes for Control Board 1.7
+ *    - Compatibility with Control Board 1.7
+ *    - MQTT: Add "VOLUME_UP"/"VOLUME_DOWN"/"VOLUME_SET_xxx" commands
+ *    - Music Player: Pre-scan folders and display status in Config Portal
+ *    - Music Player: Use new sorting algorithm as the old one caused a crash on a 
+ *      large number of already sorted files (due to excessive recursion).
+ *    - Many internal optimizations
  *  2026/04/27 (A10001986) [1.23]
  *    **********************************************************************************
  *    ** If updating from below 1.20, please install 1.20 first to have your          **

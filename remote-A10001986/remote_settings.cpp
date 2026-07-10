@@ -65,13 +65,8 @@
 #include <SD.h>
 #include <SPI.h>
 #include <FS.h>
-#ifdef USE_SPIFFS
-#define MYNVS SPIFFS
-#include <SPIFFS.h>
-#else
 #define MYNVS LittleFS
 #include <LittleFS.h>
-#endif
 #include <Update.h>
 
 #include "remote_main.h"
@@ -130,7 +125,7 @@ static struct [[gnu::packed]] {
     int32_t dn             = -5;
     int32_t zero           = 0;
     uint8_t brightness     = DEF_BRI;
-    uint8_t curSoftVol     = DEFAULT_VOLUME;
+    uint8_t curVolume      = DEFAULT_VOLUME;
     uint8_t movieMode      = DEF_MOV_MD;
     uint8_t displayGPSMode = DEF_DISP_GPS;
     uint8_t showUpdAvail   = 1;
@@ -940,6 +935,9 @@ static void read_mqtt_settings()
             wd |= CopyTextParm(json["mqttServer"], settings.mqttServer, sizeof(settings.mqttServer));
             wd |= CopyCheckValidNumParm(json["mqttV"], settings.mqttVers, sizeof(settings.mqttVers), 0, 1, 0);
             wd |= CopyTextParm(json["mqttUser"], settings.mqttUser, sizeof(settings.mqttUser));
+            #ifdef REMOTE_HAVEMQTT_MP
+            wd |= CopyCheckValidNumParm(json["pMP"], settings.pubMP, sizeof(settings.pubMP), 0, 1, 0);
+            #endif
             wd |= handleMQTTButton(json["mqttb1t"], settings.mqttbt[0], sizeof(settings.mqttbt[0]));
             wd |= handleMQTTButton(json["mqttb1o"], settings.mqttbo[0], sizeof(settings.mqttbo[0]));
             wd |= handleMQTTButton(json["mqttb1f"], settings.mqttbf[0], sizeof(settings.mqttbf[0]));
@@ -991,6 +989,9 @@ void write_mqtt_settings()
     json["mqttServer"] = (const char *)settings.mqttServer;
     json["mqttV"] = (const char *)settings.mqttVers;
     json["mqttUser"] = (const char *)settings.mqttUser;
+    #ifdef REMOTE_HAVEMQTT_MP
+    json["pMP"] = (const char *)settings.pubMP;
+    #endif
     json["mqttb1t"] = (const char *)settings.mqttbt[0];
     json["mqttb1o"] = (const char *)settings.mqttbo[0];
     json["mqttb1f"] = (const char *)settings.mqttbf[0];
@@ -1133,8 +1134,8 @@ void loadCurVolume()
         #ifdef REMOTE_DBG
         Serial.println("loadCurVolume: extracting from secSettings");
         #endif
-        if(secSettings.curSoftVol <= 19) {
-            curSoftVol = secSettings.curSoftVol;
+        if(secSettings.curVolume <= VOL_LEVELS - 1) {
+            aud_state.curVolume = secSettings.curVolume;
         }
     } else {
         #ifdef SETTINGS_TRANSITION
@@ -1144,9 +1145,9 @@ void loadCurVolume()
         if(openCfgFileRead(volCfgName, configFile)) {
             DECLARE_S_JSON(512,json);
             if(!readJSONCfgFile(json, configFile)) {
-                if(!CopyCheckValidNumParm(json["volume"], temp, sizeof(temp), 0, 19, DEFAULT_VOLUME)) {
+                if(!CopyCheckValidNumParm(json["volume"], temp, sizeof(temp), 0, VOL_LEVELS - 1, DEFAULT_VOLUME)) {
                     uint8_t ncv = atoi(temp);
-                    if(ncv <= 19) curSoftVol = ncv;
+                    if(ncv <= VOL_LEVELS - 1) aud_state.curVolume = ncv;
                 }
             } 
             configFile.close();
@@ -1161,7 +1162,7 @@ void storeCurVolume()
 {
     // Used to keep secSettings up-to-date in case
     // of delayed save
-    secSettings.curSoftVol = curSoftVol;
+    secSettings.curVolume = aud_state.curVolume;
 }
 
 void saveCurVolume()
@@ -1377,13 +1378,13 @@ void saveMusFoldNum()
 void loadShuffle()
 {
     if(haveSD && haveTerSettings) {
-        mpShuffle = !!terSettings.mpShuffle;
+        aud_state.mpShuffle = terSettings.mpShuffle;
     }
 }
 
 void saveShuffle()
 {
-    terSettings.mpShuffle = mpShuffle;
+    terSettings.mpShuffle = aud_state.mpShuffle;
     saveTerSettings(true);
 }
 
@@ -1670,7 +1671,7 @@ void doCopyAudioFiles()
     flushDelayedSave();
 
     unmount_fs();
-    delay(500);
+    delay(1000);
     
     esp_restart();
 }

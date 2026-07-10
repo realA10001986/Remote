@@ -58,6 +58,7 @@
 #include <Arduino.h>
 
 #include "input.h"
+#include "remote_audio.h"
 
 //#define REMOTE_DBG_ADC
 
@@ -149,7 +150,7 @@ enum DUV2_CONF2_PARAM {
 #define DFR_PID_L     0xf6
 
 #define DFR_GAIN      51
-#define DFR_GAIN_VOL  (1023 / 20)
+#define DFR_GAIN_VOL  (1023 / VOL_LEVELS)
 
 // ADS 1015
 #define ADS_BASE      0x100
@@ -460,8 +461,8 @@ int REMRotEnc::updateVolume(int curVol, bool force)
 
         curVol += (rotEncPos - t);
 
-        if(curVol < 0)        curVol = 0;
-        else if(curVol > 19)  curVol = 19;
+        if(curVol < 0) curVol = 0;
+        else if(curVol > VOL_LEVELS - 1) curVol = VOL_LEVELS - 1;
     }
     
     return curVol;

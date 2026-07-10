@@ -15,8 +15,8 @@
  ***                          Version Strings                          ***
  *************************************************************************/
 
-#define REMOTE_VERSION "V1.23.1"              // Do NOT change format.
-#define REMOTE_VERSION_EXTRA "MAY062026"
+#define RM_VERSION_REV "V1.24"              // Do NOT change format.
+#define REMOTE_VERSION_EXTRA "JUN252026"
 
 /*************************************************************************
  ***             Configuration for hardware/peripherals                ***
@@ -49,9 +49,6 @@
 // (Was used for prototype)
 //#define ALLOW_DIS_UB
 
-// Use SPIFFS (if defined) or LittleFS (if undefined; esp32-arduino >= 2.x)
-//#define USE_SPIFFS
-
 #define HAVE_CRSF
 
 /*************************************************************************
@@ -60,6 +57,18 @@
 
 //#define REMOTE_DBG            // Generic except below
 //#define REMOTE_DBG_NET        // Prop network related
+//#define REMOTE_DBG_AUDIO      // Audio-related
+
+/*************************************************************************
+ ***                             Sanitation                            ***
+ *************************************************************************/
+
+#ifdef HAVE_CRSF
+#define V_CRSF "C"
+#else
+#define V_CRSF ""
+#endif 
+#define REMOTE_VERSION RM_VERSION_REV V_CRSF
 
 /*************************************************************************
  ***                  esp32-arduino version detection                  ***
