@@ -2,7 +2,7 @@
 
 ![My Futaba1](img/total5.jpg)
 
-Apart from CircuitSetup's display, and the [control board](Electronics/), I have used the following additional parts:
+Apart from CircuitSetup's [kit](https://circuitsetup.us/product/futaba-remote-stanley-display-wireless-control-kit/), the following additional parts are needed:
 
 - [Unibox model 140](https://www.uniboxinfo.com/standard.html)
 - "ON/OFF" Switch: Miyama MS 500 A-MF with black handle. Can by any toggle switch; has a black, flat handle in the movie.
@@ -11,14 +11,13 @@ Apart from CircuitSetup's display, and the [control board](Electronics/), I have
 - "HOLD" Switch (used as user buttons #1 and #2): [Here](https://www.aliexpress.com/item/4000512396094.html?spm=a2g0o.order_list.order_list_main.115.5d7f1c246zk58t). MOM-OFF-MOM version, with short handle.
 - Pot cap on front of Unibox: [Here](https://www.aliexpress.com/item/1005004403102400.html?spm=a2g0o.order_list.order_list_main.144.5d7f1c246zk58t). "Big size" version.
 - Stop switch: Standard red-handle toggle switch. Google for "Plastic Toggle Switch Red".
-- Stop light: Molex 1820 light. This is a bit hard to find, let alone a red one. Clear (white) ones are on ebay; go for the RL ("removable lamp") version, they are easier to modify inside. You can paint the lens using transparent red color, and put a "stop" sticker on top of it. Data for the sticker is in the Labels folder here.
 - White wire to connect stop light and switch
 - Battery clamps: [Here](https://my.rs-online.com/web/p/battery-holders/1913935?gb=s)
 - Standard 9V battery adapters with open wire
 - a small speaker
 - a male [micro-USB plug with open wire cable](https://www.amazon.com/Maixbomr-Micro-Bare-Wire-Cable/dp/B0BZWMDB15) to turn the "tachometer" header into the charging port
 
-Luckily, CircuitSetup's kit includes a "STOP" light (and ATM this is even an original Molex light/button), so that's one off that list to start with.
+Luckily, CircuitSetup's kit includes a "STOP" light (and ATM this is even an original Molex light/button). If you do your own: The Stop light is a Molex 1820. This is a bit hard to find, let alone a red one. Clear (white) ones are on ebay; go for the RL ("removable lamp") version, they are easier to modify inside. You can paint the lens using transparent red color, and put a "stop" sticker on top of it. Data for the sticker is in the Labels folder here.
 
 ![Parts](img/parts.jpg)
   
@@ -33,6 +32,7 @@ The Control Board, which is put in the grey box ("Unibox"), has the following co
 - 8 User Buttons (buttons or switches)
 - Speaker
 - LED segment display
+- [LiOn battery](#battery-monitoring) for (real) battery monitoring
 
 ### Button/switch mapping
 
