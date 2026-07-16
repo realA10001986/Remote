@@ -199,7 +199,7 @@ Battery connector for monitoring on bottom of Control Board 1.6M (not available 
 
 ### "Stop" light and switch
 
-The Molex 1820 "Stop" light needs to be modified. A white LED needs to be fitted instead of the lamp. Since those lights are glued shut, you need an exacto knife to pry open the top cover. Then remove the lens (by pulling it out), remove the lamp socket and put a 5mm LED where the lamp would be, and push its wires next to the copper contacts leading to the rear.
+The Molex 1820 "Stop" light from CircuitSetup's kit is ready for use; if you do your own, it needs to be modified. A white LED needs to be fitted instead of the lamp. Since those lights are glued shut, you need an exacto knife to pry open the top cover. Then remove the lens (by pulling it out), remove the lamp socket and put a 5mm LED where the lamp would be, and push its wires next to the copper contacts leading to the rear.
 
 ![stop3](img/stoplight3.jpg)
 
