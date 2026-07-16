@@ -4,6 +4,8 @@ For detailed information of connectors and features, see [here](../FUTABA.md)
 
 ![schematics](../img/schematics1_6.png)
 
+_[CircuitSetup.us](https://circuitsetup.us) has an updated version of the Control Board for sale. The only difference in features is that CircuitSetup's board is ready for CRSF._
+
 To have [JCLPCB](https://jlcpcb.com) make your Futaba Control Board:
 1) Create an account at jlcpcb.com
 2) Click "Upload Gerber file" or "order now"
