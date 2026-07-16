@@ -187,13 +187,13 @@ Control Boards "1.6M" and >=1.7 feature a Battery Monitor circuit for LiPo batte
 
 ![BatMonConnection](img/batmon1.jpg)
 
-Battery connector for monitoring on bottom of Control Board:
-
-![BatMonConnection](img/battmon1.jpg)
-
 Battery header for monitoring on top of the Control Board: (Only + needed, GND is common)
 
 ![BatMonConnection](img/battmon2.jpg)
+
+Battery connector for monitoring on bottom of Control Board 1.6M (not available on version 1.7 and later):
+
+![BatMonConnection](img/battmon1.jpg)
 
 **Important**: The Control Board must be connected to the LiPo battery when said battery is idle, ie not being discharged or charged. This means it must be connected while the ESP32's USB is unplugged.
 
