@@ -159,9 +159,9 @@ For acceleration, there are two modes: Linear mode and "movie mode". In linear m
 
 When the remote hits 88.0mph, the TCD triggers a BTFN-wide time travel; all connected props will play a synchronized time travel sequence. If operated stand-alone, a time travel sequence will be played on the Remote.
 
-Auto-throttle: If this option is checked in the Config Portal, acceleration will continue to run after briefly pushing up the throttle stick and releasing it into neutral. Acceleration is stopped when pulling down the throttle stick or when 88mph is reached.
+Auto-throttle: If enabled, acceleration will continue to run after briefly pushing up the throttle stick and releasing it into neutral. Acceleration is stopped when pulling down the throttle stick or when 88mph is reached.
 
-Coasting: If this feature is enabled through the Config Portal, the Remote will ever so slightly reduce the current speed when the throttle lever is in neutral. Like a car when you put the transmission in neutral or press the clutch.
+Coasting: If this feature is enabled, the Remote will ever so slightly reduce the current speed when the throttle lever is in neutral. Like a car when you put the transmission in neutral or press the clutch.
 
 All the operation modes described above can also be switched on/off through the [TCD keypad](#tcd-remote-command-reference) or [HA/MQTT](#control-the-remote-via-mqtt).
 
