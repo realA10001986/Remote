@@ -9,7 +9,7 @@ Apart from CircuitSetup's [kit](https://circuitsetup.us/product/futaba-remote-st
 - "UP/DOWN" Switch: [Here](https://www.aliexpress.com/item/4000512396094.html?spm=a2g0o.order_list.order_list_main.115.5d7f1c246zk58t). ON-ON version, with short handle.
 - Buttons "O.O" and "RESET": [Here](https://www.aliexpress.com/item/4000638180002.html?spm=a2g0o.order_list.order_list_main.111.5d7f1c246zk58t). Used without the cap, and the stub cut shorter
 - "HOLD" Switch (used as user buttons #1 and #2): [Here](https://www.aliexpress.com/item/4000512396094.html?spm=a2g0o.order_list.order_list_main.115.5d7f1c246zk58t). MOM-OFF-MOM version, with short handle.
-- Pot cap on front of Unibox: [Here](https://www.aliexpress.com/item/1005004403102400.html?spm=a2g0o.order_list.order_list_main.144.5d7f1c246zk58t). "Big size" version.
+- Pot cap on front of Unibox (Guitar/amp knob): [Here](https://www.aliexpress.com/item/33057240301.html). "Big size" version.
 - Stop switch: Standard red-handle toggle switch. Google for "Plastic Toggle Switch Red".
 - White wire to connect stop light and switch
 - Battery clamps: [Here](https://my.rs-online.com/web/p/battery-holders/1913935?gb=s)
