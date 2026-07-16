@@ -220,7 +220,7 @@ When fake power is off, the buttons are used to set up audio volume and display 
 
 ### User Buttons
 
-These buttons are entirely optional. You can install any number of buttons, they only serve the purpose of playing back user-provided sound effects and/or send user-configurable messages to an [MQTT](#home-assistant--mqtt) broker.
+These buttons are entirely optional. You can install up to 8 buttons, they only serve the purpose of playing back user-provided sound effects and/or send user-configurable messages to an [MQTT](#home-assistant--mqtt) broker.
 
 Sound playback is mapped as follows:
 
