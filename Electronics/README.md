@@ -4,7 +4,7 @@ For detailed information of connectors and features, see [here](../FUTABA.md)
 
 ![schematics](../img/schematics1_6.png)
 
-_[CircuitSetup.us](https://circuitsetup.us) has an updated version of the Control Board for sale. The only difference in features is that CircuitSetup's board is ready for CRSF._
+_[CircuitSetup.us](https://circuitsetup.us/product/futaba-remote-stanley-display-wireless-control-kit/) has an updated version of the Control Board for sale. The only difference in features is CRSF/ELRS-readiness._
 
 To have [JCLPCB](https://jlcpcb.com) make your Futaba Control Board:
 1) Create an account at jlcpcb.com
