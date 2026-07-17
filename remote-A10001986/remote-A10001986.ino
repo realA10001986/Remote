@@ -138,15 +138,19 @@
 
 /*  Changelog
  *  
+ *  2026/07/17 (A10001986) [1.25]
+ *    **********************************************************************************
+ *    ** If updating from below 1.20, please see boxed note at version 1.21 below     **
+ *    **********************************************************************************
+ *    - Bugfix: Fix SD initialization in ESP32-Arduino to conform to specs.
+ *      Sandisk Ultra 32GB cards (and possibly others that previously were not usable) 
+ *      are now recognized.
+ *    - Add option to play throttle-up sound (when pushing throttle up after being in
+ *      neutral) at any speed, or just 0 (as before).
+ *    - Fix playing throttle-up at the beginning of a TCD-triggered P0.
  *  2026/06/26 (A10001986) [1.24]
  *    **********************************************************************************
- *    ** If updating from below 1.20, please install 1.20 first to have your          **
- *    ** settings converted. If 1.20 is skipped, some of your settings (static IP,    **
- *    ** volume, brightness, calibration data, movie mode, coasting, auto-throttle,   **
- *    ** display TCD speed while off) will be restored to default values. It suffices **
- *    ** to install 1.20 and boot once; you can then immediately update to a later    **
- *    ** version.                                                                     **
- *    ** https://github.com/realA10001986/Remote/releases/tag/V1.20                   **
+ *    ** If updating from below 1.20, please see boxed note at version 1.21 below     **
  *    **********************************************************************************
  *    - Compatibility with Control Board 1.7
  *    - MQTT: Add "VOLUME_UP"/"VOLUME_DOWN"/"VOLUME_SET_xxx" commands
@@ -156,13 +160,7 @@
  *    - Many internal optimizations
  *  2026/04/27 (A10001986) [1.23]
  *    **********************************************************************************
- *    ** If updating from below 1.20, please install 1.20 first to have your          **
- *    ** settings converted. If 1.20 is skipped, some of your settings (static IP,    **
- *    ** volume, brightness, calibration data, movie mode, coasting, auto-throttle,   **
- *    ** display TCD speed while off) will be restored to default values. It suffices **
- *    ** to install 1.20 and boot once; you can then immediately update to a later    **
- *    ** version.                                                                     **
- *    ** https://github.com/realA10001986/Remote/releases/tag/V1.20                   **
+ *    ** If updating from below 1.20, please see boxed note at version 1.21 below     **
  *    **********************************************************************************
  *    - Add Car Mode: In addition to existing WiFi network connection settings, you 
  *      can now pre-configure TCD-AP SSID and password in WiFi Settings and quickly
@@ -178,13 +176,7 @@
  *    - New sound-pack (RM12)
  *  2026/04/19 (A10001986) [1.22]
  *    **********************************************************************************
- *    ** If updating from below 1.20, please install 1.20 first to have your          **
- *    ** settings converted. If 1.20 is skipped, some of your settings (static IP,    **
- *    ** volume, brightness, calibration data, movie mode, coasting, auto-throttle,   **
- *    ** display TCD speed while off) will be restored to default values. It suffices **
- *    ** to install 1.20 and boot once; you can then immediately update to a later    **
- *    ** version.                                                                     **
- *    ** https://github.com/realA10001986/Remote/releases/tag/V1.20                   **
+ *    ** If updating from below 1.20, please see boxed note at version 1.21 below     **
  *    **********************************************************************************
  *    - Allow assigning a button/switch to "refill Plutonium". This switch/button, when
  *      switched to ON, sends a "Refill" command to the Dash Gauges through the TCD 
@@ -457,7 +449,7 @@
  *      less network traffic in time travel sequences.
  *  2024/10/24 (A10001986)
  *    - Allow triggering BTTFN-wide TT via O.O followed by throttle-up; button function
- *      controlled by option (TT vs. MP/prev.song)
+ *      controlled by option (TT vs. MP/prev.track)
  *  2024/10/23 (A10001986)
  *    - Add sound played upon volume change (new sound pack)
  *  2024/10/10 (A10001986)

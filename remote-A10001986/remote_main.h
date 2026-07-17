@@ -113,6 +113,9 @@ extern uint32_t csf;
 #define CSF_CALIBMD       0x00000020
 #define CSF_KEEPCOUNTING  0x00000040
 
+#define CSF_TCDINP0T      0x00001000
+#define CSF_TUFIRST    0x00002000
+
 #define CSF_TTP0          0x01000000
 #define CSF_TTP1          0x02000000
 #define CSF_TTP2          0x04000000
