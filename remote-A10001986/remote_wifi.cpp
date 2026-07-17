@@ -131,6 +131,15 @@ static const char *apChannelCustHTMLSrc[14] = {
     ">11%s"
 };
 
+static const char *tutCustHTMLSrc[5] = {
+    "mt5",
+    "Play throttle-up sound on throttle-up",
+    "tut",
+    "only at speed 0",
+    "at any speed"
+};
+
+
 static const char *musFoldCustHTMLSrc[12] = {
     "'>Music folder",
     "mfol",
@@ -181,7 +190,7 @@ static const char *oottCustHTMLSrc[5] = {
     "mt5",
     "Pressing O.O when Fake-Power on",
     "oott",
-    "plays previous song with Music Player",
+    "plays previous track with Music Player",
     "makes throttle-up trigger a time travel"
 };
 
@@ -231,6 +240,7 @@ static const char *wmBuildTCDSSID(const char *dest, int op);
 static const char *wmBuildApChnl(const char *dest, int op);
 static const char *wmBuildBestApChnl(const char *dest, int op);
 
+static const char *wmBuildTUT(const char *dest, int op);
 static const char *wmBuildMusicFolder(const char *dest, int op);
 static const char *wmBuildRefill(const char *dest, int op);
 static const char *wmBuildOORST(const char *dest, int op);
@@ -313,6 +323,7 @@ WiFiManagerParameter custom_hsel("<datalist id='tcdh'><option value='timecircuit
 WiFiManagerParameter custom_at("at", "Auto throttle<br><span>Accleration will continue on trottle release. Has precedence over Coasting.</span>", settings.autoThrottle, "class='mt5' style='margin-bottom:5px;'", WFM_LABEL_AFTER|WFM_IS_CHKBOX|WFM_SECTS_HEAD);
 WiFiManagerParameter custom_coast("cst", "Coasting when throttle in neutral", settings.coast, "", WFM_LABEL_AFTER|WFM_IS_CHKBOX);
 WiFiManagerParameter custom_sStrict("sStrict", "Movie-like acceleration<br><span>Check to set the acceleration pace to what is shown in the movie. This slows down acceleration at higher speeds.</span>", settings.movieMode, "class='mb0'", WFM_LABEL_AFTER|WFM_IS_CHKBOX);
+WiFiManagerParameter custom_tut(wmBuildTUT);
 WiFiManagerParameter custom_playclick("plyCLK", "Play acceleration 'click' sound", settings.playClick, "", WFM_LABEL_AFTER|WFM_IS_CHKBOX);
 WiFiManagerParameter custom_playALSnd("plyALS", "Play TCD-alarm sound", settings.playALsnd, "", WFM_LABEL_AFTER|WFM_IS_CHKBOX);
 WiFiManagerParameter custom_dGPS("dGPS", "Display TCD speed when Fake-Power is off", settings.dgps, "class='mb10'", WFM_LABEL_AFTER|WFM_IS_CHKBOX);
@@ -595,6 +606,7 @@ void wifi_setup()
       &custom_at,             // 6
       &custom_coast,
       &custom_sStrict,
+      &custom_tut,
       &custom_playclick,
       &custom_playALSnd,
       &custom_dGPS,
@@ -1721,6 +1733,7 @@ static void saveParamsCallback(int paramspage)
 
     switch(paramspage) {
     case 1:
+        getServerParam("tut", settings.playTUT, 1, 0, 1, DEF_TUT);
         getServerParam("mfol", settings.musicFolder, 1, 0, 9, 0);
         getServerParam("refb", settings.refBut, 1, 0, 8, DEF_REF_BUT);
         getServerParam("oorst", settings.oorst, 1, 0, 1, DEF_OORST);
@@ -2142,6 +2155,11 @@ static const char *wmBuildBestApChnl(const char *dest, int op)
     }
 
     return NULL;
+}
+
+static const char *wmBuildTUT(const char *dest, int op)
+{
+    return wmBuildRadioButtons(dest, op, tutCustHTMLSrc, 2, settings.playTUT);
 }
 
 static const char *wmBuildMusicFolder(const char *dest, int op)

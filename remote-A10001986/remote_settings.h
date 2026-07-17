@@ -151,6 +151,7 @@ void   freeUploadFileNames();
 #define DEF_COAST           0     // Engine braking / coasting
 #define DEF_AT              0     // Auto-throttle: Default off
 #define DEF_MOV_MD          1     // 1: movie-accurate accel pace, 0: linear and faster
+#define DEF_TUT             0     // 0: Play throttle-up sound only when speed is 0; 1: any time when throttle is pushed up
 #define DEF_PLAY_CLK        1     // 1: Play accel-clicks, 0: Do not
 #define DEF_PLAY_ALM_SND    0     // 1: Play TCD-alarm sound, 0: do not
 #define DEF_DISP_GPS        0     // 1: Display TCD speed (GPS, RotEnc) when fake-off, 0: Do not
@@ -164,7 +165,7 @@ void   freeUploadFileNames();
 #define DEF_SD_FREQ         0     // SD/SPI frequency: Default 16MHz
 
 #define DEF_OORST           0     // 0: O.O/RESET used for bri adjustment; 1: used for toggling powermaster
-#define DEF_OO_TT           1     // O.O:   1: trigger BTTFN-wide TT; 0: musicplayer prev song
+#define DEF_OO_TT           1     // O.O:   1: trigger BTTFN-wide TT; 0: musicplayer prev track
 #define DEF_RES_AT          0     // RESET: 1: toggle "auto-throttle" setting; 0: MP toggle shuffle
 
 #define DEF_DIS_BPACK       0     // 1: Disable ButtonPack (Buttons 1-8), 0: Use buttons 1-8 if detected
@@ -214,6 +215,7 @@ struct Settings {
 
     char autoThrottle[2]    = MS(DEF_AT);
     char coast[2]           = MS(DEF_COAST);
+    char playTUT[2]         = MS(DEF_TUT);
     char playClick[2]       = MS(DEF_PLAY_CLK);
     char playALsnd[2]       = MS(DEF_PLAY_ALM_SND);
 

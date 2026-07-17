@@ -190,6 +190,7 @@ static unsigned long lastSpeedUpd = 0;
 static bool    lockThrottle = false;
 bool           doCoast = false;
 bool           autoThrottle = false;
+static int     throttleUpSoundThreshold = 0;
 
 static bool calibUp = false;
 static bool calibIP = true;
@@ -460,6 +461,7 @@ static unsigned long tcdSpdChgNow = 0;
 static unsigned long tcdClickNow = 0;
 static uint16_t      remSpdAtP0Start = 0;
 static bool          triggerRefill = false;
+static int           throttleUpSoundThresholdP0 = 1;
 
 static int      iCmdIdx = 0;
 static int      oCmdIdx = 0;
@@ -843,6 +845,13 @@ void main_setup()
     // Init music player (don't check for SD here)
     switchMusicFolder(musFolderNum, true);
 
+    if(evalBool(settings.playTUT)) {
+        throttleUpSoundThreshold = 860;
+        throttleUpSoundThresholdP0 = 86;
+    } else {
+        throttleUpSoundThreshold = 0;
+        throttleUpSoundThresholdP0 = 5;
+    }
     playClicks = evalBool(settings.playClick);
 
     havePOFFsnd = check_file_SD(powerOffSnd);
@@ -1148,7 +1157,7 @@ void main_loop()
                 doForceDispUpd = false;
 
                 tcdSpeedP0Old = 2000;
-                csf &= ~(CSF_TCDINP0|CSF_TCDINP0O);
+                csf &= ~(CSF_TCDINP0|CSF_TCDINP0O|CSF_TCDINP0T);
                 remSpdAtP0Start = 0;
 
                 lockThrottle = false;
@@ -1254,7 +1263,7 @@ void main_loop()
     // Button A "O.O":
     //    Fake-power on:
     //        If buttonPack is enabled/present:
-    //            Short press: BTTFN-wide TT -or- MusicPlayer Previous Song (depending on option)
+    //            Short press: BTTFN-wide TT -or- MusicPlayer Previous track (depending on option)
     //            Long press:  MusicPlayer Play/Stop
     //        If buttonPack is disabled/not present: 
     //            Short press: Play "key3"
@@ -1265,11 +1274,11 @@ void main_loop()
     // Button B "RESET":
     //    Fake-power on: 
     //        If buttonPack is enabled/present:
-    //            Short press: MusicPlayer Next Song
+    //            Short press: MusicPlayer Next track
     //            Long press:  Toggle Auto-Throttle -or- MusicPlayer: Toggle shuffle
     //        If buttonPack is disabled/not present: 
     //            Short press: Play "key6"
-    //            Long press:  MusicPlayer Next Song
+    //            Long press:  MusicPlayer Next track
     //    Fake-power off:
     //        Short press: Decrease volume
     //        Long press: Decrease brightness or relinquish Fake-Power control (depending on option)
@@ -1725,12 +1734,15 @@ void main_loop()
                     int sbf = currSpeedF;
                     int sb  = sbf / 10;
                     if(throttlePos > 0) {
-                        if(!currSpeedF) {
-                            if(haveThUp) {
-                                play_file(throttleUpSnd, PA_THRUP|PA_INTRMUS|PA_ALLOWSD, 1.0f);
-                            } else {
-                                play_throttleup();
+                        if(!(csf & CSF_TUFIRST)) {
+                            if(currSpeedF <= throttleUpSoundThreshold) {
+                                if(haveThUp) {
+                                    play_file(throttleUpSnd, PA_THRUP|PA_INTRMUS|PA_ALLOWSD, 1.0f);
+                                } else {
+                                    play_throttleup();
+                                }
                             }
+                            csf |= CSF_TUFIRST;
                         }
                         currSpeedF += accelStep;
                         if(currSpeedF >= 880) {
@@ -1751,9 +1763,10 @@ void main_loop()
                     } else if(throttlePos < 0) {
                         currSpeedF -= accelStep;
                         if(currSpeedF < 0) currSpeedF = 0;
-                        csf &= ~CSF_KEEPCOUNTING;
-                    } else if(doCoast) {
-                        if(currSpeedF > 0) {
+                        csf &= ~(CSF_KEEPCOUNTING|CSF_TUFIRST);
+                    } else {
+                        csf &= ~CSF_TUFIRST;
+                        if(doCoast && currSpeedF > 0) {
                             currSpeedF -= max(0, (int)(esp_random() % coastCurve[currSpeedF/10][0]) - coastCurve[currSpeedF/10][1]);
                             if(currSpeedF < 0) currSpeedF = 0;
                         }
@@ -1802,23 +1815,24 @@ void main_loop()
     // happens at some point towards the end of P0)
     if(csf & CSF_TCDINP0) {
         unsigned long now = millis();
-        if((!(csf & CSF_TCDINP0O)) || (tcdSpeedP0 != tcdSpeedP0Old)) {
+        if((tcdSpeedP0 != tcdSpeedP0Old) || (!(csf & CSF_TCDINP0O))) {
             if(!(csf & CSF_TCDINP0O)) {
                 triggerTTonThrottle = 0;
-                csf |= CSF_TCDINP0O;
+                csf |= (CSF_TCDINP0O|CSF_TCDINP0T);
                 tcdClickNow = 0;
-                tcdInP0now = now;
                 remSpdAtP0Start = currSpeedF / 10;
                 #ifdef REMOTE_DBG
                 Serial.printf("Switching to P0\n");
                 #endif
-            } else {
-                tcdInP0now = now;
             }
+            tcdInP0now = now;
             if(!(csf & CSF_OFF)) {
-                if(tcdSpeedP0 > remSpdAtP0Start) {  // yes, ">"
+                if(tcdSpeedP0 > remSpdAtP0Start) {  // yes, ">". First sound (tu/click) should play at first actual increase.
+                    currSpeed = tcdSpeedP0;
+                    currSpeedF = tcdSpeedP0 * 10;
                     if(!tcdIsInP0stalled) {
-                        if(!tcdSpeedP0) {
+                        if((csf & CSF_TCDINP0T) && (tcdSpeedP0 <= throttleUpSoundThresholdP0)) {
+                            csf &= ~CSF_TCDINP0T;
                             if(haveThUp) {
                                 play_file(throttleUpSnd, PA_THRUP|PA_INTRMUS|PA_ALLOWSD, 1.0f);
                             } else {
@@ -1827,11 +1841,13 @@ void main_loop()
                         } else if(!tcdClickNow || now - tcdClickNow > 25) {
                             tcdClickNow = now;
                             play_click();
+                        } else {
+                            csf &= ~CSF_TCDINP0T;
                         }
-                    }
-                    currSpeed = tcdSpeedP0;
-                    currSpeedF = tcdSpeedP0 * 10;
-                    if(tcdIsInP0stalled) {
+                    } else {
+                        // During stall (TCD: timetravelP0Delay > 0, at the beginning), don't 
+                        // change the displayed speed (which requires fetching the currently
+                        // displayed fraction)
                         currSpeedF += remdisplay.getSpeedPostDot();
                     }
                     remdisplay.on();
@@ -1844,11 +1860,11 @@ void main_loop()
             }
         } else if(!(csf & CSF_OFF)) {
             // Fake .1s
-            if(tcdSpeedP0 >= remSpdAtP0Start) {   // yes, ">="
+            if(tcdSpeedP0 >= remSpdAtP0Start) {   // yes, ">=". Start "counting" right at the beginning.
                 if(!tcdIsInP0stalled && (now - tcdSpdChgNow > accelDelays[4])) {
                     tcdSpdChgNow = now;
-                    tcdSpdFake100++;
-                    if(tcdSpdFake100 > 9) tcdSpdFake100 = 1;
+                    if(tcdSpdFake100 < 9) tcdSpdFake100++;
+                    else                  tcdSpdFake100 = 1;
                     currSpeed = tcdSpeedP0;
                     currSpeedF = (tcdSpeedP0 * 10) + tcdSpdFake100;
                     remdisplay.on();
@@ -1867,7 +1883,7 @@ void main_loop()
         }
     } else if(csf & CSF_TCDINP0O) {
         tcdSpeedP0Old = 2000;
-        csf &= ~CSF_TCDINP0O;
+        csf &= ~(CSF_TCDINP0O|CSF_TCDINP0T);
         doForceDispUpd = true;
         triggerTTonThrottle = 0;
         #ifdef REMOTE_DBG
@@ -2529,7 +2545,7 @@ static void execute_remote_command()
         case 1:                                       // 7001: play "key1.mp3"
             play_key(1);
             break;
-        case 2:                                       // 7002: Prev song
+        case 2:                                       // 7002: Prev track
             if(haveMusic) {
                 mp_prev(mpActive);                    
             }
@@ -2555,7 +2571,7 @@ static void execute_remote_command()
         case 7:                                       // 7007: play "key7.mp3"
             play_key(7);
             break;
-        case 8:                                       // 7008: Next song
+        case 8:                                       // 7008: Next track
             if(haveMusic) {
                 mp_next(mpActive);
             }
@@ -2674,7 +2690,7 @@ static void execute_remote_command()
             case 555:
                 mp_makeShuffle((command == 555));
                 break;
-            case 888:                                 // 7888 go to song #0
+            case 888:                                 // 7888 go to track #0
                 if(haveMusic) {
                     mp_gotonum(0, true);
                 }
@@ -2798,7 +2814,7 @@ static void execute_remote_command()
                 }
             }
             break;
-        default:                                  // 7888xxx: goto song #xxx
+        default:                                  // 7888xxx: goto track #xxx
             if((command / 1000) == 888) {
                 if(!(csf & CSF_OFF)) {
                     uint16_t num = command - 888000;
@@ -3389,8 +3405,7 @@ static void handle_tcd_notification(uint8_t *buf)
     // Note: This might be called while we are in a
     // wait-delay-loop. Best to just set flags here
     // that are evaluated synchronously (=later).
-    // Do not stuff that messes with display, input,
-    // etc.
+    // Do not mess with display, input, etc.
 
     if(buf[5] & BTTFN_NOT_DATA) {
         if(TCDSupportsNOTData) {
