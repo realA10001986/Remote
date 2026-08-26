@@ -55,17 +55,16 @@
 #ifndef _REMOTE_SETTINGS_H
 #define _REMOTE_SETTINGS_H
 
-void settings_setup();
-
 void unmount_fs();
 
+bool evalBool(char *s);
+
 void write_settings();
-bool checkConfigExists();
 #ifdef REMOTE_HAVEMQTT
 void write_mqtt_settings();
 #endif
 
-bool evalBool(char *s);
+void settings_setup();
 
 void loadCalib();
 void saveCalib();
@@ -81,8 +80,8 @@ void saveCurVolume();
 void loadMovieMode();
 void saveMovieMode();
 
-void loadDisplayGPSMode();
-void saveDisplayGPSMode();
+void loaddisplayTCDSMode();
+void savedisplayTCDSMode();
 
 void saveUpdAvail();
 
@@ -109,14 +108,14 @@ bool loadIpSettings();
 void writeIpSettings();
 void deleteIpSettings();
 
+void moveSettings();
+
 bool check_if_default_audio_present();
 bool prepareCopyAudioFiles();
 void doCopyAudioFiles();
 
 bool check_allow_CPA();
 void delete_ID_file();
-
-void moveSettings();
 
 #define MAX_SIM_UPLOADS 16
 #define UPL_OPENERR 1
@@ -154,7 +153,7 @@ void   freeUploadFileNames();
 #define DEF_TUT             0     // 0: Play throttle-up sound only when speed is 0; 1: any time when throttle is pushed up
 #define DEF_PLAY_CLK        1     // 1: Play accel-clicks, 0: Do not
 #define DEF_PLAY_ALM_SND    0     // 1: Play TCD-alarm sound, 0: do not
-#define DEF_DISP_GPS        0     // 1: Display TCD speed (GPS, RotEnc) when fake-off, 0: Do not
+#define DEF_DISP_TCDS       0     // 1: Display TCD speed (GPS, RotEnc) when fake-off, 0: Do not
 #define DEF_BRI             15    // Default display brightness
 
 #define DEF_TCD_IP          ""    // TCD hostname (or ip address) for BTTFN
@@ -224,7 +223,6 @@ struct Settings {
     char refBut[2]          = MS(DEF_REF_BUT);
 
     char CfgOnSD[2]         = MS(DEF_CFG_ON_SD);
-    char sdFreq[2]          = MS(DEF_SD_FREQ);
 
     char oorst[2]           = MS(DEF_OORST);
     char ooTT[2]            = MS(DEF_OO_TT);
@@ -306,7 +304,7 @@ struct Settings {
 
     // Kludges for CP
     char movieMode[2]       = MS(DEF_MOV_MD);
-    char dgps[2]            = MS(DEF_DISP_GPS);
+    char dtcds[2]            = MS(DEF_DISP_TCDS);
     char upd[2]             = "1";
     char musicFolder[2];
     char ecmKludge[2]       = "0";  // MUST BE 0

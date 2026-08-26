@@ -326,7 +326,7 @@ WiFiManagerParameter custom_sStrict("sStrict", "Movie-like acceleration<br><span
 WiFiManagerParameter custom_tut(wmBuildTUT);
 WiFiManagerParameter custom_playclick("plyCLK", "Play acceleration 'click' sound", settings.playClick, "", WFM_LABEL_AFTER|WFM_IS_CHKBOX);
 WiFiManagerParameter custom_playALSnd("plyALS", "Play TCD-alarm sound", settings.playALsnd, "", WFM_LABEL_AFTER|WFM_IS_CHKBOX);
-WiFiManagerParameter custom_dGPS("dGPS", "Display TCD speed when Fake-Power is off", settings.dgps, "class='mb10'", WFM_LABEL_AFTER|WFM_IS_CHKBOX);
+WiFiManagerParameter custom_dTCDS("dTCDS", "Display TCD speed when Fake-Power is off", settings.dtcds, "class='mb10'", WFM_LABEL_AFTER|WFM_IS_CHKBOX);
 
 WiFiManagerParameter custom_sectstart_mp("MusicPlayer", WFM_SECTS|WFM_HL);
 WiFiManagerParameter custom_musicFolder(wmBuildMusicFolder);
@@ -338,7 +338,6 @@ WiFiManagerParameter custom_refill(wmBuildRefill);
 
 WiFiManagerParameter custom_haveSD(wmBuildHaveSD, WFM_SECTS);
 WiFiManagerParameter custom_CfgOnSD("CfgOnSD", "Save secondary settings on SD<br><span>Check this to avoid flash wear</span>", settings.CfgOnSD, "class='mt5'", WFM_LABEL_AFTER|WFM_IS_CHKBOX);
-//WiFiManagerParameter custom_sdFrq("sdFrq", "4MHz SD clock speed<br><span>Checking this might help in case of SD card problems</span>", settings.sdFreq, "style='margin-top:12px'", WFM_LABEL_AFTER|WFM_IS_CHKBOX);
 WiFiManagerParameter custom_upd("upd", "Show update notifications on power-up", settings.upd, "", WFM_LABEL_AFTER|WFM_IS_CHKBOX);
 
 WiFiManagerParameter custom_oorst(wmBuildOORST, WFM_SECTS);
@@ -609,7 +608,7 @@ void wifi_setup()
       &custom_tut,
       &custom_playclick,
       &custom_playALSnd,
-      &custom_dGPS,
+      &custom_dTCDS,
   
       &custom_sectstart_mp,   // 2
       &custom_musicFolder,
@@ -621,7 +620,6 @@ void wifi_setup()
       
       &custom_haveSD,         // 3(4)
       &custom_CfgOnSD,
-      //&custom_sdFrq,
       &custom_upd,
 
       &custom_oorst,
@@ -1014,7 +1012,7 @@ void wifi_loop()
 #endif
 
     if(millis() - lastUpdateCheck > 24*60*60*1000) {
-        if((!(csf & (CSF_TCDINP0|CSF_TT|CSF_CALIBMD|CSF_KEEPCOUNTING|CSF_BUSY|CSF_BLOCKSCAN))) && !throttlePos) {
+        if((!(csf & (CSF_TCDINP0|CSF_TT|CSF_CALIBMD|CSF_KEEPCOUNTING))) && !remBusy && !blockScan && !throttlePos) {
             if(checkAudioReallyDone()) {
                 checkForUpdate();
             }
@@ -1026,7 +1024,7 @@ void wifi_loop()
         carMode = !!(wifiLoopSaveAction & WLA_SET_CM_ON);
         if(!*settings.cm_ssid) carMode = false;
         if(carMode != ocm) {
-            csf |= CSF_BUSY;  // Force MP "off" state
+            remBusy = 1;  // Force MP "off" state
             mp_stop(true);
             stopAudio();
             saveCarMode();
@@ -1045,7 +1043,7 @@ void wifi_loop()
         int temp;
         bool write_main_settings = false;
 
-        csf |= CSF_BUSY;  // Force MP "off" state
+        remBusy = 1;  // Force MP "off" state
         mp_stop(true);
         stopAudio();
 
@@ -1110,8 +1108,8 @@ void wifi_loop()
             // Extract settings saved only as secSettings
             evalCB(settings.movieMode, &custom_sStrict);
             setBool(settings.movieMode[0], movieMode);
-            evalCB(settings.dgps, &custom_dGPS);
-            setBool(settings.dgps[0], displayGPSMode);
+            evalCB(settings.dtcds, &custom_dTCDS);
+            setBool(settings.dtcds[0], displayTCDSMode);
             evalCB(settings.upd, &custom_upd);
             setBool(settings.upd[0], showUpdAvail);
             saveAllSecCP();
@@ -1146,7 +1144,6 @@ void wifi_loop()
             
             oldCfgOnSD = settings.CfgOnSD[0];
             evalCB(settings.CfgOnSD, &custom_CfgOnSD);
-            //evalCB(settings.sdFreq, &custom_sdFrq);
 
             #ifdef ALLOW_DIS_UB
             evalCB(settings.disBPack, &custom_dBP);
@@ -1218,10 +1215,7 @@ void wifi_loop()
             
         }
 
-        // Write settings if requested, or no settings file exists
-        if(write_main_settings || !checkConfigExists()) {
-            write_settings();
-        }
+        if(write_main_settings) write_settings();
 
         // Reset esp32 to load new settings
         
@@ -1605,7 +1599,7 @@ static void checkForUpdate()
     if(uver) {
         haveCVer = true;
         if(((uver << 8) | urev) > ((cver << 8) | crev)) {
-            snprintf(newversion, sizeof(newversion), "%d.%d", uver, urev);
+            snprintf(newversion, sizeof(newversion), "%d.%02d", uver, urev);
         }
     }
 
@@ -1772,7 +1766,7 @@ static void preUpdateCallback()
     // Unregister from TCD
     bttfn_remote_unregister();
 
-    csf |= CSF_BUSY;    // Force MP "off" state
+    remBusy = 1;    // Force MP "off" state
     mp_stop(true);
     stopAudio();
 
@@ -1806,7 +1800,7 @@ static bool preWiFiScanCallback()
     // Do not allow a WiFi scan under some circumstances (as
     // it may disrupt sequences)
     
-    if((csf & (CSF_TCDINP0|CSF_TT|CSF_CALIBMD|CSF_KEEPCOUNTING|CSF_BLOCKSCAN)) || throttlePos)
+    if((csf & (CSF_TCDINP0|CSF_TT|CSF_CALIBMD|CSF_KEEPCOUNTING)) || blockScan || throttlePos)
         return false;
 
     return true;
@@ -1875,7 +1869,6 @@ static void updateConfigPortalValues()
     // refBuf done on-the-fly
 
     setCBVal(&custom_CfgOnSD, settings.CfgOnSD);
-    //setCBVal(&custom_sdFrq, settings.sdFreq);
 
     // oorst done on-the-fly
     // oott done on-the-fly
@@ -1948,7 +1941,7 @@ void updateConfigPortalVisValues()
 void updateConfigPortalVis2Values()
 {
     setBoolAndUpdCB(movieMode, settings.movieMode, &custom_sStrict);
-    setBoolAndUpdCB(displayGPSMode, settings.dgps, &custom_dGPS);
+    setBoolAndUpdCB(displayTCDSMode, settings.dtcds, &custom_dTCDS);
 }
 
 void updateConfigPortalUpdValues()
@@ -2974,16 +2967,23 @@ static void mqttCallback(char *topic, byte *payload, unsigned int length)
             break;
         case 1:
             // Trigger Time Travel (if not running already)
-            if((!(csf & (CSF_OFF|CSF_TT|CSF_BUSY))) && remoteAllowed) {
-                networkTimeTravel = true;
-                networkReentry = false;
-                networkAbort = false;
-                if(strlen(tempBuf) == 20) {
-                    networkLead = a2i(&tempBuf[11]);
-                    networkP1 = a2i(&tempBuf[16]);
+            if(remoteAllowed) {
+                if(!(csf & CSF_OFF) && !remBusy) {
+                    csf &= ~CSF_MISSEDTT;
+                    if(!(csf & CSF_TT)) {
+                        networkTimeTravel = true;
+                        networkReentry = false;
+                        networkAbort = false;
+                        if(strlen(tempBuf) == 20) {
+                            networkLead = a2i(&tempBuf[11]);
+                            networkP1 = a2i(&tempBuf[16]);
+                        } else {
+                            networkLead = ETTO_LEAD;
+                            networkP1 = 6600;
+                        }
+                    }
                 } else {
-                    networkLead = ETTO_LEAD;
-                    networkP1 = 6600;
+                    csf |= CSF_MISSEDTT;
                 }
             }
             break;
@@ -2991,12 +2991,17 @@ static void mqttCallback(char *topic, byte *payload, unsigned int length)
             // Start re-entry (if TT currently running)
             if(csf & CSF_TT) {
                 networkReentry = true;
+            } else {
+                networkTimeTravel = false;
             }
+            csf &= ~CSF_MISSEDTT;
             break;
-        case 3:   // Abort TT (TCD fake-powered down during TT)
-            if(csf & (CSF_TCDINP0|CSF_TT)) {
+        case 3:   // Abort TT (TCD fake-powered down during TT, or brake hit after TT-notification)
+            // Abort TT (if TT currently running or triggered)
+            if((csf & CSF_TT) || networkTimeTravel) {
                 networkAbort = true;
             }
+            csf &= ~CSF_MISSEDTT;
             break;
         case 4:
             networkAlarm = true;
@@ -3009,7 +3014,7 @@ static void mqttCallback(char *topic, byte *payload, unsigned int length)
             break;
         }
        
-    } else if((!(csf & CSF_BUSY)) && !strcmp(topic, "bttf/remote/cmd")) {
+    } else if(!remBusy && !strcmp(topic, "bttf/remote/cmd")) {
 
         // User commands
 

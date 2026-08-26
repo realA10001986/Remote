@@ -76,7 +76,7 @@ void updateVisMode();
 void setAutoThrottle(bool isOn);
 void setCoast(bool isOn);
 void setMovieMode(bool isOn);
-void setDisplayGPS(bool isOn);
+void setDisplayTCDS(bool isOn);
 
 void showWaitSequence();
 void endWaitSequence();
@@ -112,6 +112,7 @@ extern uint32_t csf;
 #define CSF_TT            0x00000010
 #define CSF_CALIBMD       0x00000020
 #define CSF_KEEPCOUNTING  0x00000040
+#define CSF_MISSEDTT      0x00000080
 
 #define CSF_TCDINP0T      0x00001000
 #define CSF_TUFIRST       0x00002000
@@ -119,8 +120,6 @@ extern uint32_t csf;
 #define CSF_TTP0          0x01000000
 #define CSF_TTP1          0x02000000
 #define CSF_TTP2          0x04000000
-#define CSF_BLOCKSCAN     0x40000000
-#define CSF_BUSY          0x80000000
 
 extern uint32_t myRemID;
 extern bool     remoteAllowed;
@@ -141,7 +140,7 @@ extern uint16_t visMode;
 extern bool autoThrottle;
 extern bool doCoast;
 extern bool movieMode;
-extern bool displayGPSMode;
+extern bool displayTCDSMode;
 extern bool powerMaster;
 
 extern bool bttfnTT;
@@ -157,6 +156,9 @@ extern bool doPrepareTT;
 extern bool doWakeup;
 
 extern int32_t  throttlePos;
+
+extern int remBusy;
+extern int blockScan;
 
 extern int     bttfnHaveTCDSSID;
 extern char    TCDSSID[];

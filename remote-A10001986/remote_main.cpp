@@ -195,6 +195,9 @@ static int     throttleUpSoundThreshold = 0;
 static bool calibUp = false;
 static bool calibIP = true;
 
+int         remBusy = 0;
+int         blockScan = 0;
+
 static unsigned long brichgtimer = 0;
 static unsigned long volchgtimer = 0;
 
@@ -202,7 +205,7 @@ static bool          offDisplayTimer = false;
 static unsigned long offDisplayNow = 0;
 
 #define  VISB_MOV_MD 0    // No longer part of visMode (transitional)
-#define  VISB_DGPS   1    // No longer part of visMode (transitional)
+#define  VISB_DTCDS  1    // No longer part of visMode (transitional)
 #define  VISB_AT     2
 #define  VISB_COAST  3
 #define  VISB_PWRM   7
@@ -450,8 +453,8 @@ char                 TCDSSID[8] = { 0 };
 uint8_t              TCDpwMarker = 0;
 //static bool          tcdSpdIsRotEnc = false;
 //static bool          tcdSpdIsRemote = false;
-static int16_t       currSpeedOldGPS = -2;
-bool                 displayGPSMode = DEF_DISP_GPS;
+static int16_t       currTCDSpeedOld = -2;
+bool                 displayTCDSMode = DEF_DISP_TCDS;
 static uint16_t      tcdSpeedP0 = 0, tcdSpeedP0Old = 1000;
 static uint16_t      tcdIsInP0stalled = 0;
 static unsigned long tcdInP0now = 0;
@@ -730,14 +733,14 @@ void main_setup()
     Serial.println("DTM Remote Control version " REMOTE_VERSION " " REMOTE_VERSION_EXTRA);
 
     loadMovieMode();
-    loadDisplayGPSMode();
+    loaddisplayTCDSMode();
     
     // Eval from main settings
     autoThrottle = evalBool(settings.autoThrottle);
     doCoast = evalBool(settings.coast);
     powerMaster = evalBool(settings.pwrMst);
     // Overrule by terSettings if available
-    // (In transition, might also overrule movieMode and GPSmode)
+    // (In transition, might also overrule movieMode and TCDSmode)
     if(loadVis()) {
         disectVisMode();
     } else {
@@ -796,9 +799,9 @@ void main_setup()
     #endif
     if(check_allow_CPA()) {
         showWaitSequence();
-        csf |= CSF_BUSY;  // Force MP "off" state, if state happens to be sent
+        remBusy = 1;  // Force MP "off" state, if state happens to be sent
         if(prepareCopyAudioFiles()) {
-            play_file("/_installing.mp3", PA_ALLOWSD, 1.0f);
+            play_file("/_installing.mp3", PA_ALLOWSD);
             waitAudioDone(false);
         }
         doCopyAudioFiles();
@@ -972,6 +975,9 @@ void main_setup()
         showUpd();
     }
 
+    // Set busy to avoid premature bttfn messages
+    remBusy++;
+
     // Initialize BTTF network
     bttfn_setup();
     bttfn_loop();
@@ -998,6 +1004,9 @@ void main_setup()
             }
         }
     }
+
+    // Unset busy
+    remBusy--;
 }
 
 void main_loop()
@@ -1162,16 +1171,17 @@ void main_loop()
 
                 lockThrottle = false;
 
-                networkTimeTravel = false;
-                networkAbort = false;
-
                 #ifdef REMOTE_HAVEMQTT_MP
                 mp_sendStatus();
                 #endif
 
+                networkTimeTravel = false;
+                doPrepareTT = false;
+                doWakeup = false;
+
                 bttfn_remote_send_combined(powerState, brakeState, currSpeed);
 
-                play_file(powerOnSnd, PA_INTRMUS|PA_ALLOWSD|PA_DYNVOL, 1.0f);
+                play_file(powerOnSnd, PA_INTRMUS|PA_ALLOWSD|PA_DYNVOL);
             }
         } else {
             if(!(csf & CSF_OFF)) {
@@ -1199,8 +1209,8 @@ void main_loop()
                 csf &= ~(CSF_TT|CSF_INTP0|CSF_TTP0|CSF_TTP1|CSF_TTP2);
                 
                 offDisplayTimer = false;
-                if(displayGPSMode) {
-                    currSpeedOldGPS = -2;   // Trigger GPS speed display update
+                if(displayTCDSMode) {
+                    currTCDSpeedOld = -2;   // Trigger speed display update
                 }
 
                 remdisplay.off();
@@ -1210,7 +1220,7 @@ void main_loop()
                 bttfn_remote_send_combined(powerState, brakeState, currSpeed);
 
                 if(havePOFFsnd) {
-                    play_file(powerOffSnd, PA_INTRMUS|PA_ALLOWSD|PA_DYNVOL, 1.0f);
+                    play_file(powerOffSnd, PA_INTRMUS|PA_ALLOWSD|PA_DYNVOL);
                 }
             }
         }
@@ -1227,16 +1237,16 @@ void main_loop()
 
     // Eval flags set in handle_tcd_notification
     if(doPrepareTT) {
+        doPrepareTT = false;
         if(!(csf & (CSF_OFF|CSF_TT))) {
             prepareTT();
         }
-        doPrepareTT = false;
     }
     if(doWakeup) {
+        doWakeup = false;
         if(!(csf & (CSF_OFF|CSF_TT))) {
             wakeup();
         }
-        doWakeup = false;
     }
 
     // Scan brake switch
@@ -1252,9 +1262,9 @@ void main_loop()
 
             if(!(csf & CSF_TT)) {
                 if(brakeState) {
-                    play_file(brakeOnSnd, PA_ALLOWSD|PA_DYNVOL, 1.0f);
+                    play_file(brakeOnSnd, PA_ALLOWSD|PA_DYNVOL);
                 } else if(haveBOFFsnd) {
-                    play_file(brakeOffSnd, PA_ALLOWSD|PA_DYNVOL, 1.0f);
+                    play_file(brakeOffSnd, PA_ALLOWSD|PA_DYNVOL);
                 }
             }
         }
@@ -1309,7 +1319,7 @@ void main_loop()
                                     triggerTTonThrottle = 1;
                                 }
                                 if(triggerTTonThrottle) {
-                                    play_file("/rdy.mp3", PA_INTRMUS|PA_ALLOWSD, 1.0f);
+                                    play_file("/rdy.mp3", PA_INTRMUS|PA_ALLOWSD);
                                 }
                             } else if(triggerTTonThrottle == 1) {
                                 triggerTTonThrottle = 0;
@@ -1361,7 +1371,7 @@ void main_loop()
                     displayVolume();
                     offDisplayTimer = true;
                     offDisplayNow = volchgtimer = millisNonZero();
-                    play_file("/volchg.mp3", PA_INTRMUS|PA_ALLOWSD, 1.0f);
+                    play_file("/volchg.mp3", PA_INTRMUS|PA_ALLOWSD);
                 }
             } else if(isbuttonAKeyLongPressed) {
                 if(ooresBri) {
@@ -1377,7 +1387,7 @@ void main_loop()
                     updateVisMode();
                     triggerSaveVis();
                     bttfn_remote_send_combined(powerState, brakeState, currSpeed);
-                    play_file("/pmon.mp3", PA_INTRMUS|PA_ALLOWSD, 1.0f);
+                    play_file("/pmon.mp3", PA_INTRMUS|PA_ALLOWSD);
                 }
             }
         }
@@ -1397,10 +1407,10 @@ void main_loop()
                     } else if(isbuttonBKeyLongPressed) {
                         if(resAT) {
                             toggleAutoThrottle();
-                            play_file(autoThrottle ? "/ok.mp3" : "/cancel.mp3", PA_INTRMUS|PA_ALLOWSD, 1.0f);
+                            play_file(autoThrottle ? "/ok.mp3" : "/cancel.mp3", PA_INTRMUS|PA_ALLOWSD);
                         } else {
                             mp_makeShuffle(!aud_state.mpShuffle);
-                            play_file(aud_state.mpShuffle ? "/shufon.mp3" : "/shufoff.mp3", PA_ALLOWSD, 1.0f);
+                            play_file(aud_state.mpShuffle ? "/shufon.mp3" : "/shufoff.mp3", PA_ALLOWSD);
                         }
                     }
                 #ifdef ALLOW_DIS_UB
@@ -1427,7 +1437,7 @@ void main_loop()
                     displayVolume();
                     offDisplayTimer = true;
                     offDisplayNow = volchgtimer = millisNonZero();
-                    play_file("/volchg.mp3", PA_INTRMUS|PA_ALLOWSD, 1.0f);
+                    play_file("/volchg.mp3", PA_INTRMUS|PA_ALLOWSD);
                 }
             } else if(isbuttonBKeyLongPressed) {
                 if(ooresBri) {
@@ -1443,7 +1453,7 @@ void main_loop()
                     updateVisMode();
                     triggerSaveVis();
                     bttfn_remote_send_combined(powerState, brakeState, currSpeed);
-                    play_file("/pmoff.mp3", PA_INTRMUS|PA_ALLOWSD, 1.0f);
+                    play_file("/pmoff.mp3", PA_INTRMUS|PA_ALLOWSD);
                 }
             }
         }
@@ -1495,7 +1505,7 @@ void main_loop()
                             remdisplay.clearBuf();
                             remdisplay.show();
                             remdisplay.off();
-                            currSpeedOldGPS = -2;   // force GPS speed display update
+                            currTCDSpeedOld = -2;   // force speed display update
                         } else {
                             remdisplay.setText("ERR");
                             remdisplay.show();
@@ -1522,7 +1532,7 @@ void main_loop()
                     condPLEDaBLvl(false, false);
                 }
             } else if(calibKeyState & CK_LONGPRESSSTART) {
-                play_file("/buttonl.mp3", PA_INTRMUS|PA_ALLOWSD, 1.0f);
+                play_file("/buttonl.mp3", PA_INTRMUS|PA_ALLOWSD);
             } else if(calibKeyState & CK_LONGPRESSEND) {
                 if(csf & CSF_CALIBMD) {
                     csf &= ~CSF_CALIBMD;
@@ -1530,7 +1540,7 @@ void main_loop()
                     remdisplay.show();
                     remdisplay.off();
                     condPLEDaBLvl(false, false);
-                    currSpeedOldGPS = -2;   // force GPS speed display update
+                    currTCDSpeedOld = -2;   // force speed display update
                 } else {
                     csf |= CSF_CALIBMD;
                     offDisplayTimer = false;
@@ -1546,7 +1556,7 @@ void main_loop()
                     calibUp = true;
                 }
             } else if(calibKeyState & CK_ELONGPRESSSTART) {
-                play_file("/buttonel.mp3", PA_INTRMUS|PA_ALLOWSD, 1.0f);
+                play_file("/buttonel.mp3", PA_INTRMUS|PA_ALLOWSD);
             } else if(calibKeyState & CK_ELONGPRESSEND) {
                 toggleCarMode();
             }
@@ -1562,7 +1572,7 @@ void main_loop()
                         doForceDispUpd = true;
                     }
                 } else if(calibKeyState & CK_LONGPRESSSTART) {
-                    play_file("/buttonl.mp3", PA_INTRMUS|PA_ALLOWSD, 1.0f);
+                    play_file("/buttonl.mp3", PA_INTRMUS|PA_ALLOWSD);
                 } else if(calibKeyState & CK_LONGPRESSEND) {
                     flushDelayedSave();
                     #ifdef HAVE_PM
@@ -1583,7 +1593,7 @@ void main_loop()
                     doForceDispUpd = true;
                     triggerTTonThrottle = 0;
                 } else if(calibKeyState & CK_ELONGPRESSSTART) {
-                    play_file("/buttonel.mp3", PA_INTRMUS|PA_ALLOWSD, 1.0f);
+                    play_file("/buttonel.mp3", PA_INTRMUS|PA_ALLOWSD);
                 } else if(calibKeyState & CK_ELONGPRESSEND) {
                     toggleCarMode();
                 }
@@ -1726,7 +1736,7 @@ void main_loop()
             }
             if(etmr && millis() - enow > 5000) {
                 etmr = false;
-                play_file("/tmd.mp3", 0, 1.0f);
+                play_file("/tmd.mp3", 0);
             }
             
             if(!lockThrottle) {
@@ -1737,7 +1747,7 @@ void main_loop()
                         if(!(csf & CSF_TUFIRST)) {
                             if(currSpeedF <= throttleUpSoundThreshold) {
                                 if(haveThUp) {
-                                    play_file(throttleUpSnd, PA_THRUP|PA_INTRMUS|PA_ALLOWSD, 1.0f);
+                                    play_file(throttleUpSnd, PA_THRUP|PA_INTRMUS|PA_ALLOWSD);
                                 } else {
                                     play_throttleup();
                                 }
@@ -1795,12 +1805,12 @@ void main_loop()
             #endif
         }
         if((csf & CSF_OFF) && (!(csf & CSF_CALIBMD)) && !offDisplayTimer) {
-            if(displayGPSMode) {
-                if(tcdCurrSpeed != currSpeedOldGPS) {
+            if(displayTCDSMode) {
+                if(tcdCurrSpeed != currTCDSpeedOld) {
                     remdisplay.on();
                     remdisplay.setSpeed(tcdCurrSpeed * 10);
                     remdisplay.show();
-                    currSpeedOldGPS = tcdCurrSpeed;
+                    currTCDSpeedOld = tcdCurrSpeed;
                 }
             } else {
                 offDisplayTimer = true;
@@ -1834,7 +1844,7 @@ void main_loop()
                         if((csf & CSF_TCDINP0T) && (tcdSpeedP0 <= throttleUpSoundThresholdP0)) {
                             csf &= ~CSF_TCDINP0T;
                             if(haveThUp) {
-                                play_file(throttleUpSnd, PA_THRUP|PA_INTRMUS|PA_ALLOWSD, 1.0f);
+                                play_file(throttleUpSnd, PA_THRUP|PA_INTRMUS|PA_ALLOWSD);
                             } else {
                                 play_throttleup();
                             }
@@ -1904,30 +1914,24 @@ void main_loop()
     if((csf & CSF_OFF) && offDisplayTimer && (millis() - offDisplayNow > 1000)) {
         offDisplayTimer = false;
         remdisplay.off();
-        currSpeedOldGPS = -2;   // force GPS speed display update
+        currTCDSpeedOld = -2;   // force speed display update
     }
 
     // Execute remote commands
     // No commands in calibMode, during a TT (or P0), and when acceleration is running
-    // csf & CSF_OFF checked for each individually
+    // CSF_OFF checked for each individually
     if((!(csf & (CSF_TCDINP0|CSF_TT|CSF_CALIBMD|CSF_KEEPCOUNTING))) && !throttlePos) {
         execute_remote_command();
     }
 
-    if(!(csf & CSF_OFF)) {
-      
-        // TT triggered?
-        if(!(csf & CSF_TT)) {
-            if(networkTimeTravel) {
-                networkTimeTravel = false;
-                if(!networkAbort) {
-                    timeTravel(true, networkLead, networkP1);
-                } else {
-                    networkAbort = false;
-                }
+    // TT triggered?
+    if(networkTimeTravel) {
+        networkTimeTravel = false;
+        if(!(csf & (CSF_OFF|CSF_TT))) {
+            if(!networkAbort) {
+                timeTravel(true, networkLead, networkP1);
             }
         }
-
     }
 
     now = millis();
@@ -2073,11 +2077,9 @@ void main_loop()
 
                 csf &= ~(CSF_TT|CSF_TTP2|CSF_KEEPCOUNTING);
 
-                networkAbort = false;
-
             } else if(now - TTstart > P1duration) {
               
-                play_file("/reentry.mp3", PA_INTRMUS|PA_ALLOWSD, 1.0f);
+                play_file("/reentry.mp3", PA_INTRMUS|PA_ALLOWSD);
                 TTFlag = true;
 
             }
@@ -2086,12 +2088,12 @@ void main_loop()
 
     } else {    // No TT currently
 
-        if((!(csf & (CSF_TCDINP0|CSF_CALIBMD|CSF_KEEPCOUNTING))) && !throttlePos && networkAlarm) {
+        if(networkAlarm && (!(csf & (CSF_TCDINP0|CSF_CALIBMD|CSF_KEEPCOUNTING))) && !throttlePos) {
 
             networkAlarm = false;
 
             if(evalBool(settings.playALsnd) > 0) {
-                play_file("/alarm.mp3", PA_INTRMUS|PA_ALLOWSD|PA_DYNVOL, 1.0f);
+                play_file("/alarm.mp3", PA_INTRMUS|PA_ALLOWSD|PA_DYNVOL);
             }
         
         } 
@@ -2126,7 +2128,7 @@ void main_loop()
             volchgnow = milliNonZero();
             storeCurVolume();
             if((csf & CSF_OFF) && (!(csf & CSF_TT))) {    // TT?
-                play_file("/volchg.mp3", PA_INTRMUS|PA_ALLOWSD, 1.0f);
+                play_file("/volchg.mp3", PA_INTRMUS|PA_ALLOWSD);
             }
         }
     }
@@ -2254,7 +2256,7 @@ static void disectVisMode()
 void disectOldVisMode()
 {
     movieMode      = !!(visMode & (1<<VISB_MOV_MD));
-    displayGPSMode = !!(visMode & (1<<VISB_DGPS));
+    displayTCDSMode = !!(visMode & (1<<VISB_DTCDS));
     disectVisMode();
 }
 
@@ -2315,19 +2317,19 @@ static void toggleMovieMode()
     setMovieMode(!movieMode);
 }
 
-void setDisplayGPS(bool isOn)
+void setDisplayTCDS(bool isOn)
 {
-    displayGPSMode = isOn;
-    saveDisplayGPSMode();
+    displayTCDSMode = isOn;
+    savedisplayTCDSMode();
     updateConfigPortalVis2Values();
 
-    if((csf & CSF_OFF) && displayGPSMode) {
-        currSpeedOldGPS = -2;   // force GPS speed display update
+    if((csf & CSF_OFF) && displayTCDSMode) {
+        currTCDSpeedOld = -2;   // force speed display update
     }
 }
-static void toggleDisplayGPS()
+static void toggleDisplayTCDS()
 {
-    setDisplayGPS(!displayGPSMode);
+    setDisplayTCDS(!displayTCDSMode);
 }
 
 static void condPLEDaBLvl(bool sLED, bool sLvl)
@@ -2590,7 +2592,7 @@ static void execute_remote_command()
             toggleMovieMode();
             break;
         case 61:                                      // 7061  enable/disable "display TCD speed while fake-off"
-            toggleDisplayGPS();
+            toggleDisplayTCDS();
             triggerCompleteUpdate = true;
             break;
         case 62:                                      // 7062  enable/disable autoThrottle
@@ -2607,8 +2609,8 @@ static void execute_remote_command()
                 doForceDispUpd = true;
             } else {
                 remdisplay.off();
-                // force GPS speed display update
-                currSpeedOldGPS = -2;   
+                // force speed display update
+                currTCDSpeedOld = -2;   
             }
             break;
         case 91:                                      // 7091: Display battery SOC
@@ -2622,8 +2624,8 @@ static void execute_remote_command()
                         doForceDispUpd = true;
                     } else {
                         remdisplay.off();
-                        // force GPS speed display update
-                        currSpeedOldGPS = -2;   
+                        // force speed display update
+                        currTCDSpeedOld = -2;   
                     }
                 }
             }
@@ -2738,7 +2740,7 @@ static void execute_remote_command()
                 break;
             case 8:
             case 9:
-                setDisplayGPS((command == 8));
+                setDisplayTCDS((command == 8));
                 break;
             case 12:
                 if(csf & CSF_OFF) return;
@@ -2836,7 +2838,7 @@ static void display_ip()
     remdisplay.setText("IP");
     remdisplay.show();
 
-    csf |= CSF_BLOCKSCAN;
+    blockScan++;
 
     mydelay(500, true);
 
@@ -2853,7 +2855,7 @@ static void display_ip()
     remdisplay.show();
     mydelay(500, true);
 
-    csf &= ~CSF_BLOCKSCAN;
+    blockScan--;
 }
 
 #ifdef HAVE_PM
@@ -2914,13 +2916,13 @@ static bool display_soc_voltage(int type, bool displayAndReturn)
         remdisplay.show();
         remdisplay.blink(blink);
         if(displayAndReturn) return true;
-        csf |= CSF_BLOCKSCAN;
+        blockScan++;
         mydelay(2000, true);
         remdisplay.clearBuf();
         remdisplay.show();
         if(blink) remdisplay.blink(false);
         mydelay(500, true);
-        csf &= ~CSF_BLOCKSCAN;
+        blockScan--;
         return true;
     }
     return false;
@@ -2946,7 +2948,7 @@ static void wifiOnFakePowerOn(bool showWait)
 
 static void play_startup()
 {    
-    csf |= CSF_BLOCKSCAN;
+    blockScan++;
     remdisplay.setSpeed(0);
     remdisplay.show();
     remdisplay.on();
@@ -2961,7 +2963,7 @@ static void play_startup()
 
     remdisplay.setSpeed(0);
     remdisplay.show();
-    csf &= ~CSF_BLOCKSCAN;
+    blockScan--;
 }
 
 static void playBrakeWarning()
@@ -2976,7 +2978,7 @@ static void playBrakeWarning()
         } while(t == brakeRem[7]);
         brakeRem[7] = t;
     }
-    play_file(brakeRem, PA_NOINTR|PA_INTRMUS|PA_ALLOWSD|PA_DYNVOL, 1.0f);
+    play_file(brakeRem, PA_NOINTR|PA_INTRMUS|PA_ALLOWSD|PA_DYNVOL);
 }
 
 void allOff()
@@ -2987,7 +2989,7 @@ void allOff()
 
 void prepareReboot()
 {
-    csf |= CSF_BUSY;
+    remBusy = 1;
     mp_stop(true);
     stopAudio();
 
@@ -3011,7 +3013,8 @@ bool switchMusicFolder(uint8_t nmf, bool isSetup)
 
     if((musFolderNum != nmf) || isSetup) {
 
-        csf |= (CSF_BUSY|CSF_BLOCKSCAN);
+        remBusy++;
+        blockScan++;
         
         if(!isSetup) {
             musFolderNum = nmf;
@@ -3038,7 +3041,8 @@ bool switchMusicFolder(uint8_t nmf, bool isSetup)
             endWaitSequence();
         }
 
-        csf &= ~(CSF_BUSY|CSF_BLOCKSCAN);
+        remBusy--;
+        blockScan--;
     }
 
     return waitShown;
@@ -3443,7 +3447,7 @@ static void handle_tcd_notification(uint8_t *buf)
             switch(t) {
             case BTTFN_SSRC_P0:
                 tcdSpeedP0 = (uint16_t)tcdCurrSpeed;
-                if((!(csf & (CSF_OFF|CSF_TTP1|CSF_TTP2|CSF_BUSY))) && remoteAllowed) {
+                if((!(csf & (CSF_MISSEDTT|CSF_OFF|CSF_TTP1|CSF_TTP2))) && !remBusy && remoteAllowed) {
                     csf |= CSF_TCDINP0;
                 } else {
                     csf &= ~CSF_TCDINP0;
@@ -3451,7 +3455,7 @@ static void handle_tcd_notification(uint8_t *buf)
                 tcdIsInP0stalled = buf[10] | (buf[11] << 8);  // TCD 3.9+
                 break;
             default:
-                csf &= ~CSF_TCDINP0;
+                csf &= ~(CSF_TCDINP0|CSF_MISSEDTT);
             }
             #ifdef REMOTE_DBG_NET
             //Serial.printf("TCD sent NOT_SPD: %d src %d (IsP0:%d)\n", tcdCurrSpeed, t, tcdIsInP0);
@@ -3473,31 +3477,42 @@ static void handle_tcd_notification(uint8_t *buf)
         break;
     case BTTFN_NOT_TT:
         // Trigger Time Travel (if not running already)
-        if((!(csf & (CSF_OFF|CSF_TT|CSF_BUSY))) && remoteAllowed) {
-            networkTimeTravel = true;
-            networkReentry = false;
-            networkAbort = false;
-            networkLead = buf[6] | (buf[7] << 8);
-            networkP1   = buf[8] | (buf[9] << 8);
+        if(remoteAllowed) {
+            if(!(csf & CSF_OFF) && !remBusy) {
+                csf &= ~CSF_MISSEDTT;
+                if(!(csf & CSF_TT)) {
+                    networkTimeTravel = true;
+                    networkReentry = false;
+                    networkAbort = false;
+                    networkLead = buf[6] | (buf[7] << 8);
+                    networkP1   = buf[8] | (buf[9] << 8);
+                }
+            } else {
+                csf |= CSF_MISSEDTT;
+            }
         }
         break;
     case BTTFN_NOT_REENTRY:
-        // Start re-entry (if TT currently running or triggered)
-        if(networkTimeTravel || (csf & CSF_TT)) {
+        // Start re-entry (if TT currently running)
+        if(csf & CSF_TT) {
             networkReentry = true;
+        } else {
+            networkTimeTravel = false;
         }
+        csf &= ~CSF_MISSEDTT;
         break;
     case BTTFN_NOT_ABORT_TT:
         // Abort TT (if TT currently running or triggered)
-        if(networkTimeTravel || (csf & CSF_TT)) {
+        if((csf & CSF_TT) || networkTimeTravel) {
             networkAbort = true;
         }
+        csf &= ~CSF_MISSEDTT;
         break;
     case BTTFN_NOT_ALARM:
         networkAlarm = true;
         break;
     case BTTFN_NOT_REM_CMD:
-        if(!(csf & CSF_BUSY)) {
+        if(!remBusy) {
             addCmdQueue(GET32(buf, 6));
         }
         break;
@@ -3819,7 +3834,7 @@ static void bttfn_remote_send_combined(bool powerstate, bool brakestate, uint8_t
         if(powerstate)       p1 |= 0x01;
         if(brakestate)       p1 |= 0x02;
         if(powerMaster)      p1 |= 0x08;  // 4 tainted by buggy TCD 3.7
-        if(displayGPSMode)   p1 |= 0x10;
+        if(displayTCDSMode)  p1 |= 0x10;
         if(triggerRefill)  { p1 |= 0x20; triggerRefill = false; };
         if(!bttfn_send_command(BTTFN_REMCMD_COMBINED, p1, speed)) {
             triggerCompleteUpdate = true;

@@ -247,22 +247,32 @@ static int32_t skipID3(char *buf)
     return 0;
 }
 
-void append_file(const char *audio_file, uint32_t flags, float volumeFactor)
+static void setupLoopAndBegin(AudioFileSourceLoop *src, uint32_t flags)
 {
-    strcpy(append_audio_file, audio_file);
-    append_flags = flags;
-    append_vol = volumeFactor;
-    appendFile = true;
+    int32_t pos = 0;
+    char buf[10];
 
-    #ifdef REMOTE_DBG
-    Serial.printf("Audio: Appending %s (flags %x)\n", audio_file, flags);
-    #endif
+    buf[0] = 0;
+
+    src->setPlayLoop(!!(flags & PA_LOOP));
+
+    if(flags & PA_WAV) {
+        wav->begin(src, out);
+        if(flags & PA_LOOP) src->setStartPos(wav->startPos);  // Yes, AFTER begin! Need wav->startPos!
+    } else {
+        if(flags & PA_DOID3TS) {
+            src->read((void *)buf, 10);
+            pos = skipID3(buf);
+            src->seek(pos, SEEK_SET);
+        }
+        src->setStartPos(pos);
+        
+        mp3->begin(src, out);
+    }
 }
 
 void play_file(const char *audio_file, uint32_t flags, float volumeFactor)
 {
-    char buf[64];
-    int32_t curSeek = 0;
     #ifdef REMOTE_HAVEMQTT_MP
     bool mpWasActive = false;
     #endif
@@ -296,45 +306,18 @@ void play_file(const char *audio_file, uint32_t flags, float volumeFactor)
     }
 
     curVolFact = volumeFactor;
-    dynVol     = (flags & PA_DYNVOL) ? true : false;
+    dynVol     = !!(flags & PA_DYNVOL);
     playflags  = flags & (PA_KMASK | PA_THRUP | PA_NOINTR);
     
     out->SetGain(getVolume());
 
-    buf[0] = 0;
-
     if(haveSD && ((flags & PA_ALLOWSD) || FlashROMode) && mySD0L->open(audio_file)) {
-        
-        mySD0L->setPlayLoop(!!(flags & PA_LOOP));
-
-        if(flags & PA_WAV) {
-            wav->begin(mySD0L, out);
-            if(flags & PA_LOOP) mySD0L->setStartPos(wav->startPos);
-        } else {
-            mySD0L->read((void *)buf, 10);
-            curSeek = skipID3(buf);
-            mySD0L->setStartPos(curSeek);
-            mySD0L->seek(curSeek, SEEK_SET);
-            mp3->begin(mySD0L, out);
-        }
-        
+        setupLoopAndBegin(mySD0L, flags|PA_DOID3TS);
         #ifdef REMOTE_DBG
         Serial.println("Playing from SD");
         #endif
     } else if(haveFS && myFS0L->open(audio_file)) {
-        myFS0L->setPlayLoop(!!(flags & PA_LOOP));
-
-        if(flags & PA_WAV) {
-            wav->begin(myFS0L, out);
-            if(flags & PA_LOOP) myFS0L->setStartPos(wav->startPos);
-        } else {
-            myFS0L->read((void *)buf, 10);
-            curSeek = skipID3(buf);
-            myFS0L->setStartPos(curSeek);
-            myFS0L->seek(curSeek, SEEK_SET);
-            mp3->begin(myFS0L, out);
-        }
-        
+        setupLoopAndBegin(myFS0L, flags);
         #ifdef REMOTE_DBG
         Serial.println("Playing from flash FS");
         #endif
@@ -432,7 +415,28 @@ void play_key(int k, bool l, bool stopOnly)
 
 void play_bad()
 {
-    play_file("/bad.mp3", PA_INTRMUS|PA_ALLOWSD, 1.0f);
+    play_file("/bad.mp3", PA_INTRMUS|PA_ALLOWSD);
+}
+
+/*
+ * Append file to currently played one
+ * 
+ */
+void append_file(const char *audio_file, uint32_t flags, float volumeFactor)
+{
+    strcpy(append_audio_file, audio_file);
+    append_flags = flags;
+    append_vol = volumeFactor;
+    appendFile = true;
+
+    #ifdef REMOTE_DBG
+    Serial.printf("Audio: Appending %s (flags %x)\n", audio_file, flags);
+    #endif
+}
+
+bool append_pending()
+{
+    return appendFile;
 }
 
 static float getVolume()
@@ -506,11 +510,6 @@ void stop_key()
         mp3->stop();
         playflags = 0;
     }
-}
-
-bool append_pending()
-{
-    return appendFile;
 }
 
 /*
@@ -739,7 +738,7 @@ static bool mp_play_int(bool force)
 
     mp_buildFileName(fnbuf, playList[mpCurrIdx]);
     if(SD.exists(fnbuf)) {
-        if(force) play_file(fnbuf, PA_MUSIC|PA_INTRMUS|PA_ALLOWSD|PA_DYNVOL, 1.0f);
+        if(force) play_file(fnbuf, PA_MUSIC|PA_INTRMUS|PA_ALLOWSD|PA_DYNVOL);
         mpActive = force;
         aud_state.curTrack = playList[mpCurrIdx];
         #ifdef REMOTE_HAVEMQTT_MP
@@ -754,7 +753,7 @@ static bool mp_play_int(bool force)
 void mp_sendStatus(int force)
 {
     if(pubMP && mqttConnected()) {
-        aud_state.state = ((csf & (CSF_OFF|CSF_TCDINP0|CSF_TT|CSF_BUSY)) || !haveMusic) ? 0 : (mpActive ? 1 : 2);
+        aud_state.state = ((csf & (CSF_OFF|CSF_TCDINP0|CSF_TT)) || remBusy || !haveMusic) ? 0 : (mpActive ? 1 : 2);
         if(memcmp((void *)&mpOldState, (void *)&aud_state, sizeof(aud_state)) || force) {
             static const char statec[] = "OPI";
             char msg[128];

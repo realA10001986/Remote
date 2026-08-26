@@ -56,7 +56,7 @@
 #define _REMOTE_AUDIO_H
 
 // Default volume (index)
-#define DEFAULT_VOLUME 6
+#define DEFAULT_VOLUME 8
 #define VOL_LEVELS 21
 
 #define PA_LOOP    0x00001
@@ -71,6 +71,7 @@
 #define PA_MASKA   (PA_LOOP|PA_INTRMUS|PA_ALLOWSD|PA_DYNVOL|PA_NOINTR)
 #define PA_KMASK   0x1ff80
 #define PA_MUSIC   0x20000
+#define PA_DOID3TS 0x40000
 
 void audio_setup();
 void audio_loop();

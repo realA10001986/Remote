@@ -1,6 +1,6 @@
 /*
  * AudioFileSourceLoop
- * Read SD/SPIFFS/LittleFS file to be used by AudioGenerator
+ * Read SD/LittleFS file to be used by AudioGenerator
  * Reads file in a loop (for looped playback)
  * 
  * Thomas Winischhofer (A10001986), 2023

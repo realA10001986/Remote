@@ -138,6 +138,14 @@
 
 /*  Changelog
  *  
+ *  2026/08/23 (A10001986) [1.26]
+ *    **********************************************************************************
+ *    ** If updating from below 1.20, please see boxed note at version 1.21 below     **
+ *    **********************************************************************************
+ *    - New sound-pack (RM13)
+ *    - Logic fix for time travel being initiated while fake-off
+ *    - More robust error handling in case of malformed config files
+ *    - SD: More compatibility fixes
  *  2026/07/17 (A10001986) [1.25]
  *    **********************************************************************************
  *    ** If updating from below 1.20, please see boxed note at version 1.21 below     **
@@ -602,6 +610,6 @@ void loop()
     bttfn_loop();
 }
 
-#if defined(REMOTE_DBG) || defined(REMOTE_DBG_NET)
+#if defined(REMOTE_DBG) || defined(REMOTE_DBG_NET) || defined(REMOTE_DBG_AUDIO)
 #warning "Debug output is enabled. Binary not suitable for release."
 #endif

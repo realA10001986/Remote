@@ -15,8 +15,8 @@
  ***                          Version Strings                          ***
  *************************************************************************/
 
-#define RM_VERSION_REV "V1.25"              // Do NOT change format.
-#define REMOTE_VERSION_EXTRA "JUL172026"
+#define RM_VERSION_REV "V1.26"              // Do NOT change format.
+#define REMOTE_VERSION_EXTRA "AUG232026"
 
 /*************************************************************************
  ***             Configuration for hardware/peripherals                ***
