@@ -835,9 +835,9 @@ This can also be set/changed through a TCD keypad via BTTFN (```7050``` - ```705
 
 #### <ins>Settings for BTTFN communication</ins>
 
-##### &#9193; Hostname or IP address of TCD
+##### &#9193; Hostname of TCD
 
-To connect your Remote to a Time Circuits Display wirelessly ("BTTF-Network"), enter the TCD's hostname - usually 'timecircuits' - or IP address here. Hostname is preferred because it makes the setup independent of the network environment.
+To connect your Remote to a Time Circuits Display wirelessly ("BTTF-Network"), enter the TCD's hostname - usually 'timecircuits' - here. Although specifying the TCD's IP address is supported as well, the hostname is preferred because it makes your setup independent of the network environment.
 
 ##### &#9193; Remote Fake-Power controls TCD Fake-Power
 
