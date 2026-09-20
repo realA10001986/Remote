@@ -631,7 +631,7 @@ In order to reduce the number of write operations and thereby prolong the life o
 
 ## Firmware Installation / Firmware Update
 
-If a previous version of the Remote firmware is installed on your device, you can update easily using the pre-compiled binary. Enter the [Config Portal](#the-config-portal), click on "Update & Upload", select the pre-compiled binary file ("**remote-A10001986-Vx.xx.bin**" or "**Remote_vX.YY.bin**") provided in the [Release package](https://github.com/realA10001986/Remote/releases), and click on *Update*.
+To update the firmware of your Remote, enter the [Config Portal](#the-config-portal), click on "Update & Upload", select the pre-compiled binary file ("**remote-A10001986-Vx.xx.bin**" or "**Remote_vX.YY.bin**") provided in the [Release package](https://github.com/realA10001986/Remote/releases), and click on *Update*.
 
 <details>
 <summary>Installing on a fresh ESP32...</summary>
