@@ -138,6 +138,23 @@
 
 /*  Changelog
  *  
+ *  2026/09/20 (A10001986) [1.27]
+ *    **********************************************************************************
+ *    ** If updating from below 1.20, please see boxed note at version 1.21 below     **
+ *    **********************************************************************************
+ *    - Car Mode: Automatically pair Remote to currently connected TCD by means of the
+ *      TCD's BSSID upon first successful connection in Car Mode. This avoids connecting
+ *      to other people's TCDs if in close range (meet-ups, exhibitions).
+ *    - Car Mode: Fix "Enable Car Mode now" checkbox evaluation
+ *    - Fix minor issues with ID3v1 and ID3v2.4-UTF8 tags
+ *    - Speed up booting with folders containing many files
+ *    - Music Player: The "TCD_DONE.TXT" file is now obsolete. The firmware instead uses
+ *      a cache file in the top-most folder of the SD card ("musicXc") which needs to be
+ *      deleted when files are added to the respective folder.
+ *    - Protect the Remote from uploading a wrong firmware by accident. The filename of
+ *      the firmware binary now must contain the word "remote". The check is case-
+ *      insensitive.
+ *    - Bonjour/mDNS: Send good-bye packet on controlled reboots
  *  2026/08/23 (A10001986) [1.26]
  *    **********************************************************************************
  *    ** If updating from below 1.20, please see boxed note at version 1.21 below     **
