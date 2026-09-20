@@ -1,6 +1,6 @@
 # Remote Control (Delorean Time Machine)
 
-This [repository](https://remote.out-a-ti.me) holds the most current <!-- **CRSF/ELRS-enabled**  -->firmware for CircuitSetup's [Futaba remote control kit](https://circuitsetup.us/product/futaba-remote-stanley-display-wireless-control-kit/), meant mainly for use in combination with a CircuitSetup [Time Circuits Display](https://circuitsetup.us/product/complete-time-circuits-display-kit/) with a connected speedo. Of course, the Remote can also be used stand-alone.
+This [repository](https://remote.out-a-ti.me) holds the most current **CRSF/ELRS-enabled** firmware for CircuitSetup's [Futaba remote control kit](https://circuitsetup.us/product/futaba-remote-stanley-display-wireless-control-kit/), meant mainly for use in combination with a CircuitSetup [Time Circuits Display](https://circuitsetup.us/product/complete-time-circuits-display-kit/) with a connected speedo. Of course, the Remote can also be used stand-alone.
 
 <!-- CRSF @ 4 places: In paragraph above, and twice in Appendix A. The reference to the CRSF-enabled fw needs to be commented in the CRSF version. -->
 
@@ -43,7 +43,7 @@ Firmware features:
 
 >This [repository](https://remote.out-a-ti.me) is the upstream source for CircuitSetup's releases. The only difference is that both code and documentation [here](https://remote.out-a-ti.me) might be ahead in development.
 
-For a CRSF/ELRS-enabled version of this firmware, please see the [CRSF branch](https://github.com/realA10001986/Remote/tree/CRSF).
+<!-- For a CRSF/ELRS-enabled version of this firmware, please see the [CRSF branch](https://github.com/realA10001986/Remote/tree/CRSF). -->
 
 For information on updating the firmware of your Remote, see [here](#firmware-installation--firmware-update).
 
@@ -681,10 +681,10 @@ This leads to the [Settings page](#settings).
 
 This leads to the [HomeAssistant/MQTT Settings page](#hamqtt-settings).
 
-<!--##### &#9193; ELRS/CRSF Settings
+##### &#9193; ELRS/CRSF Settings
 
 This leads to the [ELRS/CRSF Settings page](#elrscrsf-settings).
--->
+
 ##### &#9193; Update & Upload
 
 This leads to the firmware update and audio upload page.
@@ -974,7 +974,7 @@ The MQTT message to publish to the button's topic when a button is pressed/relea
 
 ---
 
-<!--### ELRS/CRSF Settings
+### ELRS/CRSF Settings
 
 This page is only shown when the firmware is built with ELRS/CRSF support.
 
@@ -1036,7 +1036,6 @@ This section shows live raw ADC readings for the four gimbals. Move a gimbal to 
 Values between the saved points are interpolated, and anything outside the saved range is clamped.
 
 --- 
--->
 
 ## Appendix B: Display messages
 
