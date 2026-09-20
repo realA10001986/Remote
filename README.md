@@ -300,7 +300,7 @@ The names of the audio files must only consist of three-digit numbers, starting 
 
 Since manually renaming mp3 files is somewhat cumbersome, the firmware can do this for you: Just copy your files with their original filenames to a music folder of your choice; when selecting that folder, the files will be sorted alphabetically and renamed according to the 3-digit name scheme. (If you want your tracks in a specific order, you must rename them, for instance by inserting a letter or number at the start.) The renaming process can take a while (11 minutes for 1000 files in bad cases). Mac users are advised to delete the ._ files from the SD before putting it back into the Remote as this speeds up the process. While the renaming is in progress, the Remote's display shows how many files are still left to be processed.
 
-To add files to a music folder later, just copy them to the folder and delete the file "TCD_DONE.TXT" (so that the firmware knows that something has changed). 
+To add files to a music folder later, just copy them to the music folder, and delete the cache file "musicXc" (X being the folder number) located in the top-most folder. That way that the firmware knows that something has changed and will re-examine the folder.
 
 To start and stop music playback, hold _O.O_ for 2 seconds. Briefly pressing _O.O_ jumps to the previous track, pressing _RESET_ to the next one. (The same can be achieved by entering codes on the TCD's keypad: ```7002``` = previous track, ```7005``` = play/stop, ```7008``` = next track).
 
@@ -348,7 +348,7 @@ BTTFN requires the props all to be connected to the same network, such as, for e
 
 </details>
 
-To connect your Remote to the TCD, just enter the TCD's hostname - usually "timecircuits" - in the **_Hostname or IP address of TCD_** field in the Remote's Config Portal. On the TCD, no special configuration is required apart from permitting remote control through keypad command 993.
+To connect your Remote to the TCD, just enter the TCD's hostname - usually "timecircuits" - in the **_Hostname of TCD_** field in the Remote's Config Portal. On the TCD, no special configuration is required apart from permitting remote control through keypad command 993.
   
 Afterwards, the Remote and the TCD can communicate wirelessly and 
 - the TCD's speed control is done by the Remote,
@@ -723,7 +723,8 @@ In Car mode, the device connects to the TCD-AP as configured here instead of the
 
 Enter your TCD's network name (usually "TCD-AP") in **_Network name (SSID) of TCD-AP_** and the TCD's AP password (if configured on the TCD) in **_Password for TCD-AP_**. 
 
->In the unlikely case that multiple TCD's are in range, you can single out your TCD by its BSSID. The TCD displays its BSSID on its *WiFi Configuration* page.
+The **_TCD-AP BSSID_** field is optional for you to fill out. The TCD displays its BSSID (unique access point identifier) on its *WiFi Configuration* page, so you could copy it into this field on your Remote. If the _TCD-AP BSSID_ field is left empty, it will be filled out automatically upon the first successful connection to your TCD in Car Mode. This pairs your Remote to your TCD and avoids connecting to other people's TCDs at meet-ups with other cars nearby.
+> If you ever need to connect your Remote to a different TCD (or, for instance, swap out your TCD's circuit board), this field needs to be cleared in order to pair your Remote to the new TCD. Note that if the Remote fails to connect to a BSSID-identified TCD, it will boot into [AP-Mode](#connecting-to-a-wifi-network) ("REM-AP").
 
 If you want to enter Car mode immediately after saving your settings, check **_Enable car mode now_**. You can also later toggle between Car mode and normal WiFi connection by holding the _Calibration_ button for 6 seconds (until a triple-beep is emitted).
 
