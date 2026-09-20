@@ -62,6 +62,8 @@ bool wifiNeedReConnect(bool& blocks);
 void wifiStartCP();
 bool updateAvailable();
 
+void wifiMDNSGoodBye();
+
 void updateConfigPortalVisValues();
 void updateConfigPortalVis2Values();
 void updateConfigPortalUpdValues();
@@ -71,7 +73,7 @@ bool isIp(char *str);
 
 bool checkIPConfig();
 
-#ifdef REMOTE_HAVEMQTT
+#ifdef HAVE_MQTT
 bool mqttConnected();
 bool mqttPublish(const char *topic, const char *pl, unsigned int len);
 #endif
@@ -83,9 +85,9 @@ extern bool wifiInAPMode;
 
 extern bool carMode;
 
-#ifdef REMOTE_HAVEMQTT
+#ifdef HAVE_MQTT
 extern bool useMQTT;
-#ifdef REMOTE_HAVEMQTT_MP
+#ifdef HAVE_MQTT_MP
 extern bool pubMP;
 #endif
 #endif

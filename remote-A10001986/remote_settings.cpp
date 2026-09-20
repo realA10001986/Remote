@@ -58,6 +58,8 @@
 #define ARDUINOJSON_USE_DOUBLE 0
 #define ARDUINOJSON_ENABLE_ARDUINO_STRING 0
 #define ARDUINOJSON_ENABLE_ARDUINO_STREAM 0
+#define ARDUINOJSON_ENABLE_ARDUINO_PRINT 0
+#define ARDUINOJSON_DECODE_UNICODE 0
 #define ARDUINOJSON_ENABLE_STD_STREAM 0
 #define ARDUINOJSON_ENABLE_STD_STRING 0
 #define ARDUINOJSON_ENABLE_NAN 0
@@ -151,12 +153,12 @@ static bool     haveTerSettings  = false;
 
 static uint32_t mainConfigHash = 0;
 static uint32_t ipHash = 0;
-#ifdef REMOTE_HAVEMQTT
+#ifdef HAVE_MQTT
 static uint32_t mqttConfigHash = 0;
 #endif
 
 static const char *cfgName    = "/remconfig.json";   // Main config (flash)
-#ifdef REMOTE_HAVEMQTT
+#ifdef HAVE_MQTT
 static const char *haCfgName  = "/remhacfg.json";    // HA/MQTT config (flash/SD)
 #endif
 static const char *ipCfgName  = "/remipcfg";         // IP config (flash)
@@ -269,6 +271,14 @@ void unmount_fs()
  * Generic file readers/writers
  */
 
+
+void deleteFileFromSD(const char *fn)
+{
+    if(haveSD) {
+        SD.remove(fn);
+    }
+}
+
 static bool readFile(File& myFile, uint8_t *buf, int len)
 {
     if(myFile) {
@@ -315,7 +325,7 @@ static bool readFileFromFSU(const char *fn, uint8_t*& buf, int& len)
 }
 
 // Read file of known size from SD
-static bool readFileFromSD(const char *fn, uint8_t *buf, int len)
+bool readFileFromSD(const char *fn, uint8_t *buf, int len)
 {   
     if(!haveSD)
         return false;
@@ -345,7 +355,7 @@ static bool writeFile(File& myFile, uint8_t *buf, int len)
 }
 
 // Write file to SD
-static bool writeFileToSD(const char *fn, uint8_t *buf, int len)
+bool writeFileToSD(const char *fn, uint8_t *buf, int len)
 {
     if(!haveSD)
         return false;
@@ -584,7 +594,7 @@ static bool writeJSONCfgFile(const JsonDocument& json, const char *fn, bool useS
     return success;
 }
 
-#ifdef REMOTE_HAVEMQTT
+#ifdef HAVE_MQTT
 static bool openCfgFileRead(const char *fn, File& f, bool SDonly = false)
 {
     bool haveConfigFile = false;
@@ -608,74 +618,6 @@ static bool openCfgFileRead(const char *fn, File& f, bool SDonly = false)
  *  Helpers for parm copying & checking
  */
 
-static bool checkValidNumParm(char *text, int lowerLim, int upperLim, int setDefault)
-{
-    int i, len = strlen(text);
-    bool ret = false;
-
-    if(!len) {
-        i = setDefault;
-        ret = true;
-    } else {
-        for(int j = 0; j < len; j++) {
-            if(text[j] < '0' || text[j] > '9') {
-                i = setDefault;
-                ret = true;
-                break;
-            }
-        }
-        if(!ret) {
-            i = atoi(text);   
-            if(i < lowerLim) {
-                i = lowerLim;
-                ret = true;
-            } else if(i > upperLim) {
-                i = upperLim;
-                ret = true;
-            }
-        }
-    }
-
-    // Re-do to get rid of formatting errors (eg "000")
-    sprintf(text, "%d", i);
-
-    return ret;
-}
-
-static bool checkValidNumParmF(char *text, float lowerLim, float upperLim, float setDefault)
-{
-    int i, len = strlen(text);
-    bool ret = false;
-    float f;
-
-    if(!len) {
-        f = setDefault;
-        ret = true;
-    } else {
-        for(i = 0; i < len; i++) {
-            if(text[i] != '.' && text[i] != '-' && (text[i] < '0' || text[i] > '9')) {
-                f = setDefault;
-                ret = true;
-                break;
-            }
-        }
-        if(!ret) {
-            f = strtof(text, NULL);
-            if(f < lowerLim) {
-                f = lowerLim;
-                ret = true;
-            } else if(f > upperLim) {
-                f = upperLim;
-                ret = true;
-            }
-        }
-    }
-    // Re-do to get rid of formatting errors (eg "0.")
-    sprintf(text, "%.1f", f);
-
-    return ret;
-}
-
 static bool CopyTextParm(const char *json, char *setting, int setSize)
 {
     if(!json) return true;
@@ -685,25 +627,59 @@ static bool CopyTextParm(const char *json, char *setting, int setSize)
     return false;
 }
 
-static bool CopyCheckValidNumParm(const char *json, char *text, int psize, int lowerLim, int upperLim, int setDefault)
+static bool CopyCBParm(const char *json, char *text, int setDefault)
 {
-    if(!json) return true;
+    text[1] = 0;
+    
+    if(json && (*json == '0' || *json == '1')) {
+        *text = *json;
+        return false;
+    }
 
-    memset(text, 0, psize);
-    strncpy(text, json, psize-1);
-    return checkValidNumParm(text, lowerLim, upperLim, setDefault);
+    *text = setDefault ? '1' : '0';
+
+    return true;
 }
 
-static bool CopyCheckValidNumParmF(const char *json, char *text, int psize, float lowerLim, float upperLim, float setDefault)
+static bool CopyCheckValidNumParm(const char *json, char *text, int lowerLim, int upperLim, int setDefault)
 {
-    if(!json) return true;
+    bool ret = true;
+    int t = setDefault;
 
-    memset(text, 0, psize);
-    strncpy(text, json, psize-1);
-    return checkValidNumParmF(text, lowerLim, upperLim, setDefault);
+    if(json) {
+        int u = atoi(json);    
+        if(u >= lowerLim && u <= upperLim) {
+            t = u;
+            ret = false;
+        }
+    }
+
+    // Re-do to get rid of formatting errors (eg "000")
+    sprintf(text, "%d", t);
+
+    return ret;
 }
 
-#ifdef REMOTE_HAVEMQTT
+static bool CopyCheckValidNumParmF(const char *json, char *text, float lowerLim, float upperLim, float setDefault)
+{
+    bool ret = true;
+    float t = setDefault;
+
+    if(json) {
+        float u = strtof(json, NULL);
+        if(u >= lowerLim && u <= upperLim) {
+            t = u;
+            ret = false;
+        }
+    }
+
+    // Re-do to get rid of formatting errors (eg "0.")
+    sprintf(text, "%.1f", t);
+
+    return ret;
+}
+
+#ifdef HAVE_MQTT
 static bool handleMQTTButton(const char *json, char *text, int psize)
 {
     if(!json) return true;
@@ -782,77 +758,77 @@ static bool read_settings(File configFile, int cfgReadCount)
         wd |= CopyTextParm(json["cmbid"], settings.cm_bssid, sizeof(settings.cm_bssid));
 
         wd |= CopyTextParm(json["hostName"], settings.hostName, sizeof(settings.hostName));
-        wd |= CopyCheckValidNumParm(json["wifiConRetries"], settings.wifiConRetries, sizeof(settings.wifiConRetries), 1, 10, DEF_WIFI_RETRY);
-        wd |= CopyCheckValidNumParm(json["rcOFP"], settings.reconOnFP, sizeof(settings.reconOnFP), 0, 1, DEF_RECON_ON_FP);
+        wd |= CopyCheckValidNumParm(json["wifiConRetries"], settings.wifiConRetries, 1, 10, DEF_WIFI_RETRY);
+        wd |= CopyCBParm(json["rcOFP"], settings.reconOnFP, DEF_RECON_ON_FP);
     
         wd |= CopyTextParm(json["systemID"], settings.systemID, sizeof(settings.systemID));
         wd |= CopyTextParm(json["appw"], settings.appw, sizeof(settings.appw));
-        wd |= CopyCheckValidNumParm(json["apch"], settings.apChnl, sizeof(settings.apChnl), 0, 11, DEF_AP_CHANNEL);
-        wd |= CopyCheckValidNumParm(json["wAOD"], settings.wifiAPOffDelay, sizeof(settings.wifiAPOffDelay), 0, 99, DEF_WIFI_APOFFDELAY);
-        wd |= CopyCheckValidNumParm(json["rAOFP"], settings.reactAPOnFP, sizeof(settings.reactAPOnFP), 0, 1, DEF_REACT_AP_ON_FP);
+        wd |= CopyCheckValidNumParm(json["apch"], settings.apChnl, 0, 11, DEF_AP_CHANNEL);
+        wd |= CopyCheckValidNumParm(json["wAOD"], settings.wifiAPOffDelay, 0, 99, DEF_WIFI_APOFFDELAY);
+        wd |= CopyCBParm(json["rAOFP"], settings.reactAPOnFP, DEF_REACT_AP_ON_FP);
 
         // Settings
 
         // autoThrottle, doCoast, powerMaster overruled by terSettings (if available)
 
-        wd |= CopyCheckValidNumParm(json["at"], settings.autoThrottle, sizeof(settings.autoThrottle), 0, 1, DEF_AT);
-        wd |= CopyCheckValidNumParm(json["coast"], settings.coast, sizeof(settings.coast), 0, 1, DEF_COAST);
-        wd |= CopyCheckValidNumParm(json["pTUT"], settings.playTUT, sizeof(settings.playTUT), 0, 1, DEF_TUT);
-        wd |= CopyCheckValidNumParm(json["playClick"], settings.playClick, sizeof(settings.playClick), 0, 1, DEF_PLAY_CLK);
-        wd |= CopyCheckValidNumParm(json["playALsnd"], settings.playALsnd, sizeof(settings.playALsnd), 0, 1, DEF_PLAY_ALM_SND);
+        wd |= CopyCBParm(json["at"], settings.autoThrottle, DEF_AT);
+        wd |= CopyCBParm(json["coast"], settings.coast, DEF_COAST);
+        wd |= CopyCBParm(json["pTUT"], settings.playTUT, DEF_TUT);
+        wd |= CopyCBParm(json["playClick"], settings.playClick, DEF_PLAY_CLK);
+        wd |= CopyCBParm(json["playALsnd"], settings.playALsnd, DEF_PLAY_ALM_SND);
         
         wd |= CopyTextParm(json["tcdIP"], settings.tcdIP, sizeof(settings.tcdIP));
-        wd |= CopyCheckValidNumParm(json["pwM"], settings.pwrMst, sizeof(settings.pwrMst), 0, 1, DEF_PWR_MST);
-        wd |= CopyCheckValidNumParm(json["reB"], settings.refBut, sizeof(settings.refBut), 0, 8, DEF_REF_BUT);
+        wd |= CopyCBParm(json["pwM"], settings.pwrMst, DEF_PWR_MST);
+        wd |= CopyCheckValidNumParm(json["reB"], settings.refBut, 0, 8, DEF_REF_BUT);
         
-        wd |= CopyCheckValidNumParm(json["CfgOnSD"], settings.CfgOnSD, sizeof(settings.CfgOnSD), 0, 1, DEF_CFG_ON_SD);
+        wd |= CopyCBParm(json["CfgOnSD"], settings.CfgOnSD, DEF_CFG_ON_SD);
 
-        wd |= CopyCheckValidNumParm(json["oorst"], settings.oorst, sizeof(settings.oorst), 0, 1, DEF_OORST);
-        wd |= CopyCheckValidNumParm(json["oott"], settings.ooTT, sizeof(settings.ooTT), 0, 1, DEF_OO_TT);
-        wd |= CopyCheckValidNumParm(json["resat"], settings.resAT, sizeof(settings.resAT), 0, 1, DEF_RES_AT);
+        wd |= CopyCheckValidNumParm(json["oorst"], settings.oorst, 0, 1, DEF_OORST);
+        wd |= CopyCheckValidNumParm(json["oott"], settings.ooTT, 0, 1, DEF_OO_TT);
+        wd |= CopyCheckValidNumParm(json["resat"], settings.resAT, 0, 1, DEF_RES_AT);
 
         #ifdef ALLOW_DIS_UB
-        wd |= CopyCheckValidNumParm(json["disBP"], settings.disBPack, sizeof(settings.disBPack), 0, 1, DEF_DIS_BPACK);
+        wd |= CopyCBParm(json["disBP"], settings.disBPack, DEF_DIS_BPACK);
         #endif
         
-        wd |= CopyCheckValidNumParm(json["b0Mt"], settings.bPb0Maint, sizeof(settings.bPb0Maint), 0, 1, DEF_BPMAINT);
-        wd |= CopyCheckValidNumParm(json["b1Mt"], settings.bPb1Maint, sizeof(settings.bPb1Maint), 0, 1, DEF_BPMAINT);
-        wd |= CopyCheckValidNumParm(json["b2Mt"], settings.bPb2Maint, sizeof(settings.bPb2Maint), 0, 1, DEF_BPMAINT);
-        wd |= CopyCheckValidNumParm(json["b3Mt"], settings.bPb3Maint, sizeof(settings.bPb3Maint), 0, 1, DEF_BPMAINT);
-        wd |= CopyCheckValidNumParm(json["b4Mt"], settings.bPb4Maint, sizeof(settings.bPb4Maint), 0, 1, DEF_BPMAINT);
-        wd |= CopyCheckValidNumParm(json["b5Mt"], settings.bPb5Maint, sizeof(settings.bPb5Maint), 0, 1, DEF_BPMAINT);
-        wd |= CopyCheckValidNumParm(json["b6Mt"], settings.bPb6Maint, sizeof(settings.bPb6Maint), 0, 1, DEF_BPMAINT);
-        wd |= CopyCheckValidNumParm(json["b7Mt"], settings.bPb7Maint, sizeof(settings.bPb7Maint), 0, 1, DEF_BPMAINT);
+        wd |= CopyCBParm(json["b0Mt"], settings.bPb0Maint, DEF_BPMAINT);
+        wd |= CopyCBParm(json["b1Mt"], settings.bPb1Maint, DEF_BPMAINT);
+        wd |= CopyCBParm(json["b2Mt"], settings.bPb2Maint, DEF_BPMAINT);
+        wd |= CopyCBParm(json["b3Mt"], settings.bPb3Maint, DEF_BPMAINT);
+        wd |= CopyCBParm(json["b4Mt"], settings.bPb4Maint, DEF_BPMAINT);
+        wd |= CopyCBParm(json["b5Mt"], settings.bPb5Maint, DEF_BPMAINT);
+        wd |= CopyCBParm(json["b6Mt"], settings.bPb6Maint, DEF_BPMAINT);
+        wd |= CopyCBParm(json["b7Mt"], settings.bPb7Maint, DEF_BPMAINT);
 
-        wd |= CopyCheckValidNumParm(json["b0MtO"], settings.bPb0MtO, sizeof(settings.bPb0MtO), 0, 1, DEF_BPMTOO);
-        wd |= CopyCheckValidNumParm(json["b1MtO"], settings.bPb1MtO, sizeof(settings.bPb1MtO), 0, 1, DEF_BPMTOO);
-        wd |= CopyCheckValidNumParm(json["b2MtO"], settings.bPb2MtO, sizeof(settings.bPb2MtO), 0, 1, DEF_BPMTOO);
-        wd |= CopyCheckValidNumParm(json["b3MtO"], settings.bPb3MtO, sizeof(settings.bPb3MtO), 0, 1, DEF_BPMTOO);
-        wd |= CopyCheckValidNumParm(json["b4MtO"], settings.bPb4MtO, sizeof(settings.bPb4MtO), 0, 1, DEF_BPMTOO);
-        wd |= CopyCheckValidNumParm(json["b5MtO"], settings.bPb5MtO, sizeof(settings.bPb5MtO), 0, 1, DEF_BPMTOO);
-        wd |= CopyCheckValidNumParm(json["b6MtO"], settings.bPb6MtO, sizeof(settings.bPb6MtO), 0, 1, DEF_BPMTOO);
-        wd |= CopyCheckValidNumParm(json["b7MtO"], settings.bPb7MtO, sizeof(settings.bPb7MtO), 0, 1, DEF_BPMTOO);
+        wd |= CopyCBParm(json["b0MtO"], settings.bPb0MtO, DEF_BPMTOO);
+        wd |= CopyCBParm(json["b1MtO"], settings.bPb1MtO, DEF_BPMTOO);
+        wd |= CopyCBParm(json["b2MtO"], settings.bPb2MtO, DEF_BPMTOO);
+        wd |= CopyCBParm(json["b3MtO"], settings.bPb3MtO, DEF_BPMTOO);
+        wd |= CopyCBParm(json["b4MtO"], settings.bPb4MtO, DEF_BPMTOO);
+        wd |= CopyCBParm(json["b5MtO"], settings.bPb5MtO, DEF_BPMTOO);
+        wd |= CopyCBParm(json["b6MtO"], settings.bPb6MtO, DEF_BPMTOO);
+        wd |= CopyCBParm(json["b7MtO"], settings.bPb7MtO, DEF_BPMTOO);
 
-        wd |= CopyCheckValidNumParm(json["uPLED"], settings.usePwrLED, sizeof(settings.usePwrLED), 0, 1, DEF_USE_PLED);
-        wd |= CopyCheckValidNumParm(json["pLEDFP"], settings.pwrLEDonFP, sizeof(settings.pwrLEDonFP), 0, 1, DEF_PLEDFP);
-        wd |= CopyCheckValidNumParm(json["uLvLM"], settings.useLvlMtr, sizeof(settings.useLvlMtr), 0, 1, DEF_USE_LVLMTR);
-        wd |= CopyCheckValidNumParm(json["uLvLMFP"], settings.LvLMtronFP, sizeof(settings.LvLMtronFP), 0, 1, DEF_LVLFP);
+        wd |= CopyCBParm(json["uPLED"], settings.usePwrLED, DEF_USE_PLED);
+        wd |= CopyCBParm(json["pLEDFP"], settings.pwrLEDonFP, DEF_PLEDFP);
+        wd |= CopyCBParm(json["uLvLM"], settings.useLvlMtr, DEF_USE_LVLMTR);
+        wd |= CopyCBParm(json["uLvLMFP"], settings.LvLMtronFP, DEF_LVLFP);
 
         #ifdef HAVE_PM
-        wd |= CopyCheckValidNumParm(json["uPM"], settings.usePwrMon, sizeof(settings.usePwrMon), 0, 1, DEF_USE_PWRMON);
-        wd |= CopyCheckValidNumParm(json["bTy"], settings.batType, sizeof(settings.batType), 0, 4, DEF_BAT_TYPE);
-        wd |= CopyCheckValidNumParm(json["bCa"], settings.batCap, sizeof(settings.batCap), 1000, 6000, DEF_BAT_CAP);
+        wd |= CopyCBParm(json["uPM"], settings.usePwrMon, DEF_USE_PWRMON);
+        wd |= CopyCheckValidNumParm(json["bTy"], settings.batType, 0, 4, DEF_BAT_TYPE);
+        wd |= CopyCheckValidNumParm(json["bCa"], settings.batCap, 1000, 6000, DEF_BAT_CAP);
         #endif
 
         #ifdef HAVE_CRSF
         if(haveNewBoard) {
-            wd |= CopyCheckValidNumParm(json["opMode"], settings.opMode, sizeof(settings.opMode), 0, 1, DEF_OPMODE);
-            wd |= CopyCheckValidNumParm(json["eWAP"], settings.crsfap, sizeof(settings.crsfap), 0, 1, DEF_CRSFWM);
-            wd |= CopyCheckValidNumParm(json["ePRHz"], settings.elrsPktRate, sizeof(settings.elrsPktRate), 0, 4, DEF_ELRSPKTRATE);
-            wd |= CopyCheckValidNumParm(json["eSUnit"], settings.elrsSpdUnit, sizeof(settings.elrsSpdUnit), 0, 1, DEF_ELRSSPDUNIT);
-            wd |= CopyCheckValidNumParm(json["eTlmR"], settings.elrsTlmRatio, sizeof(settings.elrsTlmRatio), 0, 6, DEF_ELRSTLMRATIO);
-            wd |= CopyCheckValidNumParm(json["eMxPwr"], settings.elrsMaxPower, sizeof(settings.elrsMaxPower), 0, 5, DEF_ELRSMAXPOWER);
-            wd |= CopyCheckValidNumParm(json["eDynP"], settings.elrsDynPower, sizeof(settings.elrsDynPower), 0, 1, DEF_ELRSDYNPWR);
+            wd |= CopyCheckValidNumParm(json["opMode"], settings.opMode, 0, 1, DEF_OPMODE);
+            wd |= CopyCBParm(json["eWAP"], settings.crsfap, DEF_CRSFWM);
+            wd |= CopyCheckValidNumParm(json["ePRHz"], settings.elrsPktRate, 0, 4, DEF_ELRSPKTRATE);
+            wd |= CopyCheckValidNumParm(json["eSUnit"], settings.elrsSpdUnit, 0, 1, DEF_ELRSSPDUNIT);
+            wd |= CopyCheckValidNumParm(json["eTlmR"], settings.elrsTlmRatio, 0, 6, DEF_ELRSTLMRATIO);
+            wd |= CopyCheckValidNumParm(json["eMxPwr"], settings.elrsMaxPower, 0, 5, DEF_ELRSMAXPOWER);
+            wd |= CopyCheckValidNumParm(json["eDynP"], settings.elrsDynPower, 0, 1, DEF_ELRSDYNPWR);
         }
         #endif
   
@@ -970,7 +946,7 @@ void write_settings()
  * Load/save HA/MQTT config
  */
 
-#ifdef REMOTE_HAVEMQTT
+#ifdef HAVE_MQTT
 void write_mqtt_settings()
 {
     const char *funcName = "write_mqtt_settings";
@@ -989,7 +965,7 @@ void write_mqtt_settings()
     json["mqttServer"] = (const char *)settings.mqttServer;
     json["mqttV"] = (const char *)settings.mqttVers;
     json["mqttUser"] = (const char *)settings.mqttUser;
-    #ifdef REMOTE_HAVEMQTT_MP
+    #ifdef HAVE_MQTT_MP
     json["pMP"] = (const char *)settings.pubMP;
     #endif
     json["mqttb1t"] = (const char *)settings.mqttbt[0];
@@ -1041,12 +1017,12 @@ static void read_mqtt_settings()
         DECLARE_D_JSON(JSON_SIZE_MQTT,json);
         if(!readJSONCfgFile(json, configFile, &mqttConfigHash)) {
             wd = false;
-            wd |= CopyCheckValidNumParm(json["useMQTT"], settings.useMQTT, sizeof(settings.useMQTT), 0, 1, 0);
+            wd |= CopyCBParm(json["useMQTT"], settings.useMQTT, 0);
             wd |= CopyTextParm(json["mqttServer"], settings.mqttServer, sizeof(settings.mqttServer));
-            wd |= CopyCheckValidNumParm(json["mqttV"], settings.mqttVers, sizeof(settings.mqttVers), 0, 1, 0);
+            wd |= CopyCheckValidNumParm(json["mqttV"], settings.mqttVers, 0, 1, 0);
             wd |= CopyTextParm(json["mqttUser"], settings.mqttUser, sizeof(settings.mqttUser));
-            #ifdef REMOTE_HAVEMQTT_MP
-            wd |= CopyCheckValidNumParm(json["pMP"], settings.pubMP, sizeof(settings.pubMP), 0, 1, 0);
+            #ifdef HAVE_MQTT_MP
+            wd |= CopyCBParm(json["pMP"], settings.pubMP, 0);
             #endif
             wd |= handleMQTTButton(json["mqttb1t"], settings.mqttbt[0], sizeof(settings.mqttbt[0]));
             wd |= handleMQTTButton(json["mqttb1o"], settings.mqttbo[0], sizeof(settings.mqttbo[0]));
@@ -1277,7 +1253,7 @@ void settings_setup()
     if(haveSD) {
         for(int i = 0; ; i++) {
             if(!obsFiles[i]) break;
-            SD.remove(obsFiles[i]);
+            deleteFileFromSD(obsFiles[i]);
         }
     }
     #endif
@@ -1315,7 +1291,7 @@ void settings_setup()
     }
 
     // Load HA/MQTT settings
-    #ifdef REMOTE_HAVEMQTT
+    #ifdef HAVE_MQTT
     read_mqtt_settings();
     #endif
 
@@ -1345,7 +1321,7 @@ void loadCalib()
 {
     if(haveSecSettings) {
         #ifdef REMOTE_DBG
-        Serial.println("loadCalib: extracting from secSettings\n");
+        Serial.println("loadCalib: extracting from secSettings");
         #endif
         if(useRotEnc) {
             rotEnc.setMaxStepsUp(secSettings.up);
@@ -1665,7 +1641,7 @@ void deleteIpSettings()
     ipHash = 0;
 
     if(FlashROMode) {
-        SD.remove(ipCfgName);
+        deleteFileFromSD(ipCfgName);
     } else if(haveFS) {
         MYNVS.remove(ipCfgName);
     }
@@ -1732,7 +1708,7 @@ static void reInstallFlashFS()
         #ifdef REMOTE_DBG
         Serial.println("Re-writing MQTT and secondary settings");
         #endif
-        #ifdef REMOTE_HAVEMQTT
+        #ifdef HAVE_MQTT
         mqttConfigHash = 0;
         write_mqtt_settings();
         #endif
@@ -1761,7 +1737,7 @@ void moveSettings()
 
     configOnSD = !configOnSD;
     
-    #ifdef REMOTE_HAVEMQTT
+    #ifdef HAVE_MQTT
     mqttConfigHash = 0;
     write_mqtt_settings();
     #endif
@@ -1770,12 +1746,12 @@ void moveSettings()
     configOnSD = !configOnSD;
 
     if(configOnSD) {
-        #ifdef REMOTE_HAVEMQTT
-        SD.remove(haCfgName);
+        #ifdef HAVE_MQTT
+        deleteFileFromSD(haCfgName);
         #endif
-        SD.remove(secCfgName);
+        deleteFileFromSD(secCfgName);
     } else {
-        #ifdef REMOTE_HAVEMQTT
+        #ifdef HAVE_MQTT
         MYNVS.remove(haCfgName);
         #endif
         MYNVS.remove(secCfgName);
@@ -1984,7 +1960,7 @@ void doCopyAudioFiles()
     }
 
     if(haveSD) {
-        SD.remove("/_installing.mp3");
+        deleteFileFromSD("/_installing.mp3");
     }
 
     if(delIDfile) {
@@ -2009,7 +1985,7 @@ void doCopyAudioFiles()
 void delete_ID_file()
 {
     if(haveSD && ic) {
-        SD.remove(CONFND);
+        deleteFileFromSD(CONFND);
         SD.rename(CONFN, CONFND);
     }
 }
@@ -2071,7 +2047,7 @@ bool openUploadFile(String& fn, File& file, int idx, bool haveAC, int& opType, i
                (strstr(uploadFileName, "/-delete-") == uploadFileName)) {
 
                 uploadFileName[8] = '/';
-                SD.remove(uploadFileName+8);
+                deleteFileFromSD(uploadFileName+8);
                 opType = -1;
                 
             }
@@ -2125,7 +2101,7 @@ void removeACFile(int idx)
 {
     if(haveSD) {
         if(uploadRealFileNames[idx]) {
-            SD.remove(uploadRealFileNames[idx]);
+            deleteFileFromSD(uploadRealFileNames[idx]);
         }
     }
 }
@@ -2168,7 +2144,7 @@ void renameUploadFile(int idx)
         t[1] = 0;
         strcat(t, uploadFileName+2);
         
-        SD.remove(t);
+        deleteFileFromSD(t);
         
         SD.rename(uploadFileName, t);
 
@@ -2234,7 +2210,7 @@ static void firmware_update()
     myFile.close();
     // Rename/remove in any case, we don't
     // want an update loop hammer our flash
-    SD.remove(fwfnold);
+    deleteFileFromSD(fwfnold);
     SD.rename(fwfn, fwfnold);
     unmount_fs();
     delay(1000);

@@ -57,10 +57,14 @@
 
 void unmount_fs();
 
+void deleteFileFromSD(const char *fn);
+bool readFileFromSD(const char *fn, uint8_t *buf, int len);
+bool writeFileToSD(const char *fn, uint8_t *buf, int len);
+
 bool evalBool(char *s);
 
 void write_settings();
-#ifdef REMOTE_HAVEMQTT
+#ifdef HAVE_MQTT
 void write_mqtt_settings();
 #endif
 
@@ -259,12 +263,12 @@ struct Settings {
     char batCap[6]          = MS(DEF_BAT_CAP);
 #endif
 
-#ifdef REMOTE_HAVEMQTT
+#ifdef HAVE_MQTT
     char useMQTT[2]         = "0";
     char mqttVers[2]        = "0"; // 0 = 3.1.1, 1 = 5.0
     char mqttServer[80]     = "";  // ip or domain [:port]  
     char mqttUser[128]      = "";  // user[:pass] (UTF8)
-    #ifdef REMOTE_HAVEMQTT_MP
+    #ifdef HAVE_MQTT_MP
     char pubMP[2]           = "0"; // 1:Publish music player status to bttf/remote/mpstatus, 0: Don't
     #endif
     char mqttbt[8][128]     = { 0 };  // buttons topics (UTF8)
@@ -280,6 +284,8 @@ struct Settings {
     char elrsTlmRatio[2]    = MS(DEF_ELRSTLMRATIO);
     char elrsMaxPower[2]    = MS(DEF_ELRSMAXPOWER);
     char elrsDynPower[2]    = MS(DEF_ELRSDYNPWR);
+
+    // Kludges. Saved as "profile".
     char elrsRollCh[3]      = MS(DEF_ELRSROLLCH);
     char elrsPitchCh[3]     = MS(DEF_ELRSPITCHCH);
     char elrsThrCh[3]       = MS(DEF_ELRSTHRCH);

@@ -15,8 +15,8 @@
  ***                          Version Strings                          ***
  *************************************************************************/
 
-#define RM_VERSION_REV "V1.26"              // Do NOT change format.
-#define REMOTE_VERSION_EXTRA "AUG232026"
+#define RM_VERSION_REV "V1.27"              // Do NOT change format.
+#define REMOTE_VERSION_EXTRA "SEP202026"
 
 /*************************************************************************
  ***             Configuration for hardware/peripherals                ***
@@ -29,7 +29,7 @@
  *************************************************************************/
 
 // Uncomment for HomeAssistant MQTT protocol support
-#define REMOTE_HAVEMQTT
+#define HAVE_MQTT
 
 // External time travel lead time, as defined by TCD firmware
 // If Remote is listening to MQTT (instead of BTTFN because TCD is configured
@@ -77,8 +77,8 @@
 #if defined __has_include && __has_include(<esp_arduino_version.h>)
 #include <esp_arduino_version.h>
 #ifdef ESP_ARDUINO_VERSION_MAJOR
-    #if ESP_ARDUINO_VERSION >= ESP_ARDUINO_VERSION_VAL(2,0,8)
-    #define HAVE_GETNEXTFILENAME
+    #if ESP_ARDUINO_VERSION < ESP_ARDUINO_VERSION_VAL(2,0,8)
+    #error "ESP-arduino >= 2.0.8 required"
     #endif
 #endif
 #endif

@@ -379,7 +379,7 @@ static char          brakeRem[]  = "/rbrake1.mp3";
 #define BTTFN_TYPE_SID     2    // SID
 #define BTTFN_TYPE_PCG     3    // Dash Gauges
 #define BTTFN_TYPE_VSR     4    // VSR
-#define BTTFN_TYPE_AUX     5    // Aux (user custom device)
+#define BTTFN_TYPE_AUX     5    // Aux (user custom device, Jukebox)
 #define BTTFN_TYPE_REMOTE  6    // Futaba remote control
 #define BTTFN_NOT_PREPARE  1
 #define BTTFN_NOT_TT       2
@@ -528,6 +528,8 @@ static void wakeup();
 static void play_startup();
 static void playBrakeWarning();
 
+static bool switchMusicFolder(uint8_t nmf, bool isSetup = false);
+
 static void volWasChanged();
 
 static void powKeyPressed();
@@ -553,7 +555,7 @@ static void butPackKeyLongPressed(int);
 static void butPackKeyLongPressStop(int i);
 static void buttonPackActionPress(int i, bool stopOnly);
 static void buttonPackActionLongPress(int i);
-#ifdef REMOTE_HAVEMQTT
+#ifdef HAVE_MQTT
 static void mqtt_send_button_on(int i);
 static void mqtt_send_button_off(int i);
 #endif
@@ -779,7 +781,7 @@ void main_setup()
     buttonPackMtOnOnly[6] = evalBool(settings.bPb6MtO);
     buttonPackMtOnOnly[7] = evalBool(settings.bPb7MtO);
 
-    #ifdef REMOTE_HAVEMQTT
+    #ifdef HAVE_MQTT
     for(int i = 0; i < PACK_SIZE; i++) {
         MQTTbuttonOnLen[i] = MQTTbuttonOffLen[i] = 0;
     }
@@ -1171,7 +1173,7 @@ void main_loop()
 
                 lockThrottle = false;
 
-                #ifdef REMOTE_HAVEMQTT_MP
+                #ifdef HAVE_MQTT_MP
                 mp_sendStatus();
                 #endif
 
@@ -1798,7 +1800,7 @@ void main_loop()
 
             // Network-latency-depending display sync is nice'n'all but latency
             // measurement is dead as soon as audio comes into play. (1-2 vs 10-13).
-            #ifdef REMOTE_DBG
+            #ifdef REMOTE_DBG_LAT
             if(bttfnCurrLatency > 10) {
                 Serial.printf("latency %d\n", bttfnCurrLatency);
             }
@@ -2189,7 +2191,7 @@ static void chgVolume(int d)
         volchgnow = millisNonZero();
         storeCurVolume();
 
-        #ifdef REMOTE_HAVEMQTT_MP
+        #ifdef HAVE_MQTT_MP
         mp_sendStatus();
         #endif
     }
@@ -2721,7 +2723,7 @@ static void execute_remote_command()
             command -= 1000;
             
             switch(command) {
-            #ifdef REMOTE_HAVEMQTT
+            #ifdef HAVE_MQTT
             case 1:
                 if(csf & CSF_OFF) return;
                 stop_key();
@@ -2774,7 +2776,7 @@ static void execute_remote_command()
                     volWasChanged();
                 }
                 break;
-            #ifdef REMOTE_HAVEMQTT_MP
+            #ifdef HAVE_MQTT_MP
             case 21:
                 mp_sendStatus(1);
                 break;
@@ -2819,7 +2821,7 @@ static void execute_remote_command()
         default:                                  // 7888xxx: goto track #xxx
             if((command / 1000) == 888) {
                 if(!(csf & CSF_OFF)) {
-                    uint16_t num = command - 888000;
+                    int num = command - 888000;
                     num = mp_gotonum(num, true);
                 }
             }
@@ -2993,6 +2995,8 @@ void prepareReboot()
     mp_stop(true);
     stopAudio();
 
+    wifiMDNSGoodBye();
+
     allOff();
 
     pwrled.setState(false);
@@ -3005,7 +3009,7 @@ void prepareReboot()
     delay(100);
 }
 
-bool switchMusicFolder(uint8_t nmf, bool isSetup)
+static bool switchMusicFolder(uint8_t nmf, bool isSetup)
 {
     bool waitShown = false;
 
@@ -3053,7 +3057,7 @@ static void volWasChanged()
     #ifdef HAVE_VOL_ROTENC
     re_vol_reset();
     #endif
-    #ifdef REMOTE_HAVEMQTT_MP
+    #ifdef HAVE_MQTT_MP
     mp_sendStatus();
     #endif
     volchgnow = millisNonZero();
@@ -3167,7 +3171,7 @@ static void butPackKeyPressed(int i)
         isbutPackKeyPressed[i] = false;
         isbutPackKeyLongPressed[i] = false;
 
-        #ifdef REMOTE_HAVEMQTT
+        #ifdef HAVE_MQTT
         mqtt_send_button_on(i);
         #endif
         if(refillButton == i + 1) triggerRefill = true;
@@ -3181,7 +3185,7 @@ static void butPackKeyPressStop(int i)
         isbutPackKeyLongPressed[i] = false;
         isbutPackKeyChange[i] = true;
         
-        #ifdef REMOTE_HAVEMQTT
+        #ifdef HAVE_MQTT
         mqtt_send_button_off(i);
         #endif
     }
@@ -3195,7 +3199,7 @@ static void butPackKeyLongPressed(int i)
     } else {
         isbutPackKeyPressed[i] = true;
         isbutPackKeyLongPressed[i] = false;
-        #ifdef REMOTE_HAVEMQTT
+        #ifdef HAVE_MQTT
         mqtt_send_button_on(i);
         #endif
         if(refillButton == i + 1) triggerRefill = true;
@@ -3208,7 +3212,7 @@ static void butPackKeyLongPressStop(int i)
     isbutPackKeyPressed[i] = false;
     isbutPackKeyLongPressed[i] = false;
     isbutPackKeyChange[i] = true;
-    #ifdef REMOTE_HAVEMQTT
+    #ifdef HAVE_MQTT
     mqtt_send_button_off(i);
     #endif
 }
@@ -3273,7 +3277,7 @@ static void buttonPackActionLongPress(int i)
     }
 }
 
-#ifdef REMOTE_HAVEMQTT
+#ifdef HAVE_MQTT
 static void mqtt_send_button_on(int i)
 {
     if(!MQTTbuttonOnLen[i] || (csf & CSF_OFF))

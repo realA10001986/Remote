@@ -102,7 +102,7 @@ int      mp_gotonum(int num, bool force = false);
 void     mp_makeShuffle(bool enable);
 int      mp_checkForFolder(int num);
 uint8_t* m(uint8_t *a, uint32_t s, int e);
-#ifdef REMOTE_HAVEMQTT_MP
+#ifdef HAVE_MQTT_MP
 void     mp_sendStatus(int force = 0);
 #endif
 
