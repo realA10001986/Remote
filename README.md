@@ -503,7 +503,7 @@ Afterwards, the Remote and the TCD can communicate wirelessly and
     </tr>
 </table>
 
-1: Board 1.6M or >= 1.7 required; if LiPo battery is properly connected to battery monitor.
+1: Board 1.6M or >= 1.7 required; if LiPo battery is properly connected to battery monitor.<br>
 2: Not supported through HA/MQTT [_INJECT_](#the-inject_x-command) command
 
 [Here](CheatSheet.pdf) is a cheat sheet for printing or screen-use.
