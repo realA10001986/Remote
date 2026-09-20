@@ -148,20 +148,20 @@ static const char *cYawChCustHTMLSrc[18] = {
 
 WiFiManagerParameter custom_crsfom(wmBuildCRSFOM, WFM_SECTS_HEAD);
 WiFiManagerParameter custom_ss_crsf("ELRS/CRSF Settings", WFM_SECTS|WFM_HL);
-WiFiManagerParameter custom_crsfap("cAP", "Connect to WiFi in ELRS/CRSF mode<br><span>If unchecked, device will remain in AP mode.</span>", settings.crsfap, "", WFM_LABEL_AFTER|WFM_IS_CHKBOX);
+WiFiManagerParameter custom_crsfap("Connect to WiFi in ELRS/CRSF mode<br><span>If unchecked, device will remain in AP mode.</span>", settings.crsfap, "", WFM_LABEL_AFTER|WFM_IS_CHKBOX);
 WiFiManagerParameter custom_crsfpr(wmBuildCRSFPR);
 WiFiManagerParameter custom_crsfsu(wmBuildCRSFSU);
 WiFiManagerParameter custom_crsftr(wmBuildCRSFTR);
 WiFiManagerParameter custom_crsfmp(wmBuildCRSFMP);
 WiFiManagerParameter custom_crsfdp(wmBuildCRSFDP);
 WiFiManagerParameter custom_crsfrc(wmBuildCRSFRC);
-WiFiManagerParameter custom_crsfrr("crrv", "Reverse Aileron", settings.elrsRollRev, "class='mt5 ml20'", WFM_LABEL_AFTER|WFM_IS_CHKBOX);
+WiFiManagerParameter custom_crsfrr("Reverse Aileron", settings.elrsRollRev, "class='mt5 ml20'", WFM_LABEL_AFTER|WFM_IS_CHKBOX);
 WiFiManagerParameter custom_crsfpc(wmBuildCRSFPC);
-WiFiManagerParameter custom_crsfprv("cprv", "Reverse Elevator", settings.elrsPitchRev, "class='mt5 ml20'", WFM_LABEL_AFTER|WFM_IS_CHKBOX);
+WiFiManagerParameter custom_crsfprv("Reverse Elevator", settings.elrsPitchRev, "class='mt5 ml20'", WFM_LABEL_AFTER|WFM_IS_CHKBOX);
 WiFiManagerParameter custom_crsftc(wmBuildCRSFTC);
-WiFiManagerParameter custom_crsftrv("ctrv", "Reverse Throttle", settings.elrsThrRev, "class='mt5 ml20'", WFM_LABEL_AFTER|WFM_IS_CHKBOX);
+WiFiManagerParameter custom_crsftrv("Reverse Throttle", settings.elrsThrRev, "class='mt5 ml20'", WFM_LABEL_AFTER|WFM_IS_CHKBOX);
 WiFiManagerParameter custom_crsfyc(wmBuildCRSFYC);
-WiFiManagerParameter custom_crsfyrv("cyrv", "Reverse Rudder", settings.elrsYawRev, "class='mt5 ml20'", WFM_LABEL_AFTER|WFM_IS_CHKBOX);
+WiFiManagerParameter custom_crsfyrv("Reverse Rudder", settings.elrsYawRev, "class='mt5 ml20'", WFM_LABEL_AFTER|WFM_IS_CHKBOX);
 WiFiManagerParameter custom_ss_crsfcal("ELRS/CRSF Gimbal Calibration", WFM_SECTS|WFM_HL);
 WiFiManagerParameter custom_crsfcal(wmBuildCRSFCAL, WFM_FOOT);
 
@@ -195,6 +195,12 @@ WiFiManagerParameter *crsfParmArray[] = {
 static bool crsf_wifi_loop_settings()
 {
     evalCB(settings.crsfap, &custom_crsfap);
+
+    evalCB(settings.elrsRollRev, &custom_crsfrr);
+    evalCB(settings.elrsPitchRev, &custom_crsfprv);
+    evalCB(settings.elrsThrRev, &custom_crsftrv);
+    evalCB(settings.elrsYawRev, &custom_crsfyrv);
+
     if(saveCRSFPortalInputSettings()) {
         return true;
     }
@@ -218,10 +224,6 @@ static void crsf_wifi_saveParamsCallback()
     getServerParamOneBased("cptch", settings.elrsPitchCh, 2, 1, 16, DEF_ELRSPITCHCH);
     getServerParamOneBased("cthch", settings.elrsThrCh, 2, 1, 16, DEF_ELRSTHRCH);
     getServerParamOneBased("cywch", settings.elrsYawCh, 2, 1, 16, DEF_ELRSYAWCH);
-    getServerParam("crrv", settings.elrsRollRev, 1, 0, 1, 0);
-    getServerParam("cprv", settings.elrsPitchRev, 1, 0, 1, 0);
-    getServerParam("ctrv", settings.elrsThrRev, 1, 0, 1, 0);
-    getServerParam("cyrv", settings.elrsYawRev, 1, 0, 1, 0);
     if(opModeCRSF) {
         getServerParam("crrlo", settings.elrsRollLow, 5, 0, 2047, 0);
         getServerParam("crrct", settings.elrsRollCtr, 5, 0, 2047, 1024);
@@ -328,12 +330,6 @@ static bool saveCRSFPortalInputSettings()
 static void crsf_wifi_updateConfigPortalValues()
 {
     syncCRSFPortalBuffers();
-    setCBVal(&custom_crsfap, settings.crsfap);
-    setCBVal(&custom_crsfrr, settings.elrsRollRev);
-    setCBVal(&custom_crsfprv, settings.elrsPitchRev);
-    setCBVal(&custom_crsftrv, settings.elrsThrRev);
-    setCBVal(&custom_crsfyrv, settings.elrsYawRev);
-    // all others done on-the-fly
 }
 
 static const char *wmBuildSelectOneBased(const char *dest, int op, const char **src, int count, char *setting, bool indent = false)
