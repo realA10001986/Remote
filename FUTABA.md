@@ -2,23 +2,22 @@
 
 ![My Futaba1](img/total5.jpg)
 
-Apart from CircuitSetup's display, and the [control board](Electronics/), I have used the following additional parts:
+Apart from CircuitSetup's [kit](https://circuitsetup.us/product/futaba-remote-stanley-display-wireless-control-kit/), the following additional parts are needed:
 
 - [Unibox model 140](https://www.uniboxinfo.com/standard.html)
 - "ON/OFF" Switch: Miyama MS 500 A-MF with black handle. Can by any toggle switch; has a black, flat handle in the movie.
 - "UP/DOWN" Switch: [Here](https://www.aliexpress.com/item/4000512396094.html?spm=a2g0o.order_list.order_list_main.115.5d7f1c246zk58t). ON-ON version, with short handle.
 - Buttons "O.O" and "RESET": [Here](https://www.aliexpress.com/item/4000638180002.html?spm=a2g0o.order_list.order_list_main.111.5d7f1c246zk58t). Used without the cap, and the stub cut shorter
 - "HOLD" Switch (used as user buttons #1 and #2): [Here](https://www.aliexpress.com/item/4000512396094.html?spm=a2g0o.order_list.order_list_main.115.5d7f1c246zk58t). MOM-OFF-MOM version, with short handle.
-- Pot cap on front of Unibox: [Here](https://www.aliexpress.com/item/1005004403102400.html?spm=a2g0o.order_list.order_list_main.144.5d7f1c246zk58t). "Big size" version.
+- Pot cap on front of Unibox (Guitar/amp knob): [Here](https://www.aliexpress.com/item/33057240301.html). "Big size" version.
 - Stop switch: Standard red-handle toggle switch. Google for "Plastic Toggle Switch Red".
-- Stop light: Molex 1820 light. This is a bit hard to find, let alone a red one. Clear (white) ones are on ebay; go for the RL ("removable lamp") version, they are easier to modify inside. You can paint the lens using transparent red color, and put a "stop" sticker on top of it. Data for the sticker is in the Labels folder here.
 - White wire to connect stop light and switch
 - Battery clamps: [Here](https://my.rs-online.com/web/p/battery-holders/1913935?gb=s)
 - Standard 9V battery adapters with open wire
 - a small speaker
-- a male [micro-USB plug with open wire cable](https://www.amazon.com/Maixbomr-Micro-Bare-Wire-Cable/dp/B0BZWMDB15) to turn the "tachometer" header into the charging port
+- 2x male [micro-USB plug with open wire cable](https://www.amazon.com/Maixbomr-Micro-Bare-Wire-Cable/dp/B0BZWMDB15) to turn the "tachometer" header into the charging port, and to connect the ESP32 to power. If your ESP32 has an USB-C connector, use an USB-C cable instead.
 
-Luckily, CircuitSetup's kit includes a "STOP" light (and ATM this is even an original Molex light/button), so that's one off that list to start with.
+Luckily, CircuitSetup's kit includes a "STOP" light (and ATM this is even an original Molex light/button). If you do your own: The Stop light is a Molex 1820. This is a bit hard to find, let alone a red one. Clear (white) ones are on ebay; go for the RL ("removable lamp") version, they are easier to modify inside. You can paint the lens using transparent red color, and put a "stop" sticker on top of it. Data for the sticker is in the Labels folder here.
 
 ![Parts](img/parts.jpg)
   
@@ -33,6 +32,7 @@ The Control Board, which is put in the grey box ("Unibox"), has the following co
 - 8 User Buttons (buttons or switches)
 - Speaker
 - LED segment display
+- [LiOn battery](#battery-monitoring) for (real) battery monitoring
 
 ### Button/switch mapping
 
@@ -57,7 +57,7 @@ The User Buttons/Switches in the following schematics are examples.
 
 ![schematics](img/schematics1_6.png)
 
-The switch for User Button 4 and 5 in above example must be a three-position switch with OFF in the middle.
+The switch for User Button 4 and 5 in example above must be a three-position switch with OFF in the middle.
 
 ### How to take apart the Futaba remote control
 
@@ -187,19 +187,19 @@ Control Boards "1.6M" and >=1.7 feature a Battery Monitor circuit for LiPo batte
 
 ![BatMonConnection](img/batmon1.jpg)
 
-Battery connector for monitoring on bottom of Control Board:
-
-![BatMonConnection](img/battmon1.jpg)
-
 Battery header for monitoring on top of the Control Board: (Only + needed, GND is common)
 
 ![BatMonConnection](img/battmon2.jpg)
+
+Battery connector for monitoring on bottom of Control Board 1.6M (not available on version 1.7 and later):
+
+![BatMonConnection](img/battmon1.jpg)
 
 **Important**: The Control Board must be connected to the LiPo battery when said battery is idle, ie not being discharged or charged. This means it must be connected while the ESP32's USB is unplugged.
 
 ### "Stop" light and switch
 
-The Molex 1820 "Stop" light needs to be modified. A white LED needs to be fitted instead of the lamp. Since those lights are glued shut, you need an exacto knife to pry open the top cover. Then remove the lens (by pulling it out), remove the lamp socket and put a 5mm LED where the lamp would be, and push its wires next to the copper contacts leading to the rear.
+The Molex 1820 "Stop" light from CircuitSetup's kit is ready for use; if you do your own, it needs to be modified. A white LED needs to be fitted instead of the lamp. Since those lights are glued shut, you need an exacto knife to pry open the top cover. Then remove the lens (by pulling it out), remove the lamp socket and put a 5mm LED where the lamp would be, and push its wires next to the copper contacts leading to the rear.
 
 ![stop3](img/stoplight3.jpg)
 

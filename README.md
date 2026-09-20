@@ -1,6 +1,8 @@
 # Remote Control (Delorean Time Machine)
 
-This [repository](https://remote.out-a-ti.me) holds the most current **CRSF/ELRS-enabled** firmware for CircuitSetup's [Futaba remote control kit](https://circuitsetup.us/product/futaba-remote-stanley-display-wireless-control-kit/), meant mainly for use in combination with a CircuitSetup [Time Circuits Display](https://circuitsetup.us/product/complete-time-circuits-display-kit/) with a connected speedo. Of course, the Remote can also be used stand-alone.
+This [repository](https://remote.out-a-ti.me) holds the most current <!-- **CRSF/ELRS-enabled**  -->firmware for CircuitSetup's [Futaba remote control kit](https://circuitsetup.us/product/futaba-remote-stanley-display-wireless-control-kit/), meant mainly for use in combination with a CircuitSetup [Time Circuits Display](https://circuitsetup.us/product/complete-time-circuits-display-kit/) with a connected speedo. Of course, the Remote can also be used stand-alone.
+
+<!-- CRSF @ 4 places: In paragraph above, and twice in Appendix A. The reference to the CRSF-enabled fw needs to be commented in the CRSF version. -->
 
 See [here](FUTABA.md) for information on the hardware (parts, disassembly & building instructions).
 
@@ -40,6 +42,8 @@ Firmware features:
 - &#128007; &#129370;
 
 >This [repository](https://remote.out-a-ti.me) is the upstream source for CircuitSetup's releases. The only difference is that both code and documentation [here](https://remote.out-a-ti.me) might be ahead in development.
+
+For a CRSF/ELRS-enabled version of this firmware, please see the [CRSF branch](https://github.com/realA10001986/Remote/tree/CRSF).
 
 For information on updating the firmware of your Remote, see [here](#firmware-installation--firmware-update).
 
@@ -287,7 +291,8 @@ The uploaded files are stored to the root folder of the SD card, so this way of 
 
 The firmware contains a simple music player to play mp3 files located on the SD card. 
 
-*The maximum bitrate is __128kpbs__. The free [Adapter](https://macroplant.com/adapter/audio-converter) tool can re-encode your mp3 files in batches.*
+> [!NOTE]
+> The maximum mp3 bitrate is __128kpbs__. The free [Adapter&#10548;](https://macroplant.com/adapter/audio-converter) tool can re-encode your mp3 files in batches.
 
 To be recognized, your mp3 files need to be organized in music folders named *music0* through *music9*. The folder number is 0 by default, i.e. the player starts searching for music in folder *music0*. The folder number can be changed in the Config Portal ("Settings") or through the TCD keypad (```705x```) or HA/MQTT (```MP_FOLDER_x```).
 
@@ -295,7 +300,7 @@ The names of the audio files must only consist of three-digit numbers, starting 
 
 Since manually renaming mp3 files is somewhat cumbersome, the firmware can do this for you: Just copy your files with their original filenames to a music folder of your choice; when selecting that folder, the files will be sorted alphabetically and renamed according to the 3-digit name scheme. (If you want your tracks in a specific order, you must rename them, for instance by inserting a letter or number at the start.) The renaming process can take a while (11 minutes for 1000 files in bad cases). Mac users are advised to delete the ._ files from the SD before putting it back into the Remote as this speeds up the process. While the renaming is in progress, the Remote's display shows how many files are still left to be processed.
 
-To add files to a music folder later, just copy them to the folder and delete the file "TCD_DONE.TXT" (so that the firmware knows that something has changed). 
+To add files to a music folder later, just copy them to the music folder, and delete the cache file "musicXc" (X being the folder number) located in the top-most folder. That way that the firmware knows that something has changed and will re-examine the folder.
 
 To start and stop music playback, hold _O.O_ for 2 seconds. Briefly pressing _O.O_ jumps to the previous track, pressing _RESET_ to the next one. (The same can be achieved by entering codes on the TCD's keypad: ```7002``` = previous track, ```7005``` = play/stop, ```7008``` = next track).
 
@@ -343,7 +348,7 @@ BTTFN requires the props all to be connected to the same network, such as, for e
 
 </details>
 
-To connect your Remote to the TCD, just enter the TCD's hostname - usually "timecircuits" - in the **_Hostname or IP address of TCD_** field in the Remote's Config Portal. On the TCD, no special configuration is required apart from permitting remote control through keypad command 993.
+To connect your Remote to the TCD, just enter the TCD's hostname - usually "timecircuits" - in the **_Hostname of TCD_** field in the Remote's Config Portal. On the TCD, no special configuration is required apart from permitting remote control through keypad command 993.
   
 Afterwards, the Remote and the TCD can communicate wirelessly and 
 - the TCD's speed control is done by the Remote,
@@ -596,7 +601,7 @@ This configuration can easily be achieved by putting both the TCD and the Remote
 #### Remote
 
 One-time configuration steps:
-- Enter the Config Portal on the Remote, click on *Settings* and check that the hostname of the TCD (usually "timecircuits") is present in the  **_Hostname or IP address of TCD_** under *Wireless communication (BTTF-Network)* settings; do _not_ use an IP address.
+- Enter the Config Portal on the Remote, click on *Settings* and check that the hostname of the TCD (usually "timecircuits") is present in the  **_Hostname of TCD_** under *Wireless communication (BTTF-Network)* settings.
 - Furthermore, on the *WiFi Configuration* page, check that the TCD's WiFi network name (SSID; usually "TCD-AP") and password (if the TCD is configured with a password) are present under *Car mode settings*.
 
 If everything is in place, you can enable Car mode on the Remote by holding the _Calibration_ button for 6 seconds (until a triple-beep is emitted). The Remote will reboot and attempt to connect to the TCD's AP.
@@ -676,10 +681,10 @@ This leads to the [Settings page](#settings).
 
 This leads to the [HomeAssistant/MQTT Settings page](#hamqtt-settings).
 
-##### &#9193; ELRS/CRSF Settings
+<!--##### &#9193; ELRS/CRSF Settings
 
 This leads to the [ELRS/CRSF Settings page](#elrscrsf-settings).
-
+-->
 ##### &#9193; Update & Upload
 
 This leads to the firmware update and audio upload page.
@@ -704,7 +709,7 @@ To connect your Remote to your WiFi network, all you need to do is either to cli
 
 >By default, the Remote requests an IP address via DHCP. However, you can also configure a static IP for the Remote by entering the IP, netmask, gateway and DNS server. All four fields must be filled for a valid static IP configuration. If you want to stick to DHCP, leave those four fields empty.
 
-If there are several APs with identical SSID nearby, the Remote will connect to the first one found, which might not be the one with the strongest signal. It is therefore recommended to select the nearest/strongest AP by its BSSID (AP's MAC address). You can either manually find out your AP's BSSID and enter it or have it filled out automatically: Click "Scan for networks", then "Show all". If you click on an AP, its BSSID will be copied into BSSID field in the form below. To see which AP is which, hover over the name to see its BSSID as a tooltip.
+If there are several APs with identical SSID nearby, the Remote will connect to the first one found, which might not be the one with the strongest signal. It is therefore recommended to select the nearest/strongest AP by its BSSID (AP's MAC address, a unique identifier for a specific AP). You can either manually find out your AP's BSSID and enter it or have it filled out automatically: Click "Scan for networks", then "Show all". If you click on an AP, its BSSID will be copied into BSSID field in the form below. To see which AP is which, hover over the name to see its BSSID as a tooltip.
 
 If the WiFi network the Remote is supposed to connect to wasn't reachable when the Remote was powered up, it will run in AP mode. You can trigger a re-connection attempt by fake-powering it down and up. This technique is also used for WiFi power-saving in AP-mode, see [here](#wifi-power-saving-features).
 
@@ -718,7 +723,8 @@ In Car mode, the device connects to the TCD-AP as configured here instead of the
 
 Enter your TCD's network name (usually "TCD-AP") in **_Network name (SSID) of TCD-AP_** and the TCD's AP password (if configured on the TCD) in **_Password for TCD-AP_**. 
 
->In the unlikely case that multiple TCD's are in range, you can single out your TCD by its BSSID. The TCD displays its BSSID on its *WiFi Configuration* page.
+The **_TCD-AP BSSID_** field is optional for you to fill out. The TCD displays its BSSID (unique access point identifier) on its *WiFi Configuration* page, so you could copy it into this field on your Remote. If the _TCD-AP BSSID_ field is left empty, it will be filled out automatically upon the first successful connection to your TCD in Car Mode. This pairs your Remote to your TCD and avoids connecting to other people's TCDs at meet-ups with other cars nearby.
+> If you ever need to connect your Remote to a different TCD (or, for instance, swap out your TCD's circuit board), this field needs to be cleared in order to pair your Remote to the new TCD. Note that if the Remote fails to connect to a BSSID-identified TCD, it will boot into [AP-Mode](#connecting-to-a-wifi-network) ("REM-AP").
 
 If you want to enter Car mode immediately after saving your settings, check **_Enable car mode now_**. You can also later toggle between Car mode and normal WiFi connection by holding the _Calibration_ button for 6 seconds (until a triple-beep is emitted).
 
@@ -830,9 +836,9 @@ This can also be set/changed through a TCD keypad via BTTFN (```7050``` - ```705
 
 #### <ins>Settings for BTTFN communication</ins>
 
-##### &#9193; Hostname or IP address of TCD
+##### &#9193; Hostname of TCD
 
-To connect your Remote to a Time Circuits Display wirelessly ("BTTF-Network"), enter the TCD's hostname - usually 'timecircuits' - or IP address here. Hostname is preferred because it makes the setup independent of the network environment.
+To connect your Remote to a Time Circuits Display wirelessly ("BTTF-Network"), enter the TCD's hostname - usually 'timecircuits' - here. Although specifying the TCD's IP address is supported as well, the hostname is preferred because it makes your setup independent of the network environment.
 
 ##### &#9193; Remote Fake-Power controls TCD Fake-Power
 
@@ -968,7 +974,7 @@ The MQTT message to publish to the button's topic when a button is pressed/relea
 
 ---
 
-### ELRS/CRSF Settings
+<!--### ELRS/CRSF Settings
 
 This page is only shown when the firmware is built with ELRS/CRSF support.
 
@@ -1029,7 +1035,8 @@ This section shows live raw ADC readings for the four gimbals. Move a gimbal to 
 
 Values between the saved points are interpolated, and anything outside the saved range is clamped.
 
----
+--- 
+-->
 
 ## Appendix B: Display messages
 
@@ -1040,7 +1047,7 @@ Values between the saved points are interpolated, and anything outside the saved
 - "FUL": Battery is full, ie 100% charged
 - "IP": IP address is going to be shown.
 - "RST": WiFi password temporarily cleared; static IP permanently deleted
-- "UPD": Firmware update available; shown briefly at power-up (optional).
+- "UPD": Firmware update available. Shown briefly at power-up.
 
 ---
 _Text & images: (C) Thomas Winischhofer ("A10001986"). See LICENSE._ [Source](https://remote.out-a-ti.me)  
