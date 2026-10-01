@@ -252,6 +252,8 @@ The switches are positioned and rotated as in the movie, as far as I could make 
 
 With everything wired up; it looks more chaotic than it is. The black square on the right hand side is the speaker. (Click for hi-res image)
 
+Before closing the Unibox, please put aforementioned microSD card into the card slot on the Control Board.
+
 [<img src="img/box3.jpg">](img/box3l.jpg)
 
 Here are some details of the mostly finished product (cable ties aren't final on those pics though):
@@ -263,8 +265,6 @@ Here are some details of the mostly finished product (cable ties aren't final on
 ![det3](img/det3.jpg)
 
 ![det4](img/det4.jpg)
-
-Before closing the Unibox, please put aforementioned microSD card into the card slot on the Control Board.
 
 ## And here it is
 
