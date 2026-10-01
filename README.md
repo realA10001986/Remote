@@ -33,7 +33,7 @@ Firmware features:
 - Movie-accurate "Stop" light and stop switch behavior
 - Movie-accurate sound effects
 - Eight optional "[User Buttons](#user-buttons)" for playback of user-provided sound effects and/or sending user-configurable [Home Assistant/MQTT](#home-assistant--mqtt) messages
-- [SD card](#sd-card) support for custom audio files for effects, and music for the Music Player
+- [SD card](#sd-card) support for custom audio files for effects, and music for the Music Player. SD card required for firmware updates.
 - [Music player](#the-music-player): Play mp3 files located on an SD card, controlled by the _O.O_/_RESET_ buttons or [Time Circuits Display](https://circuitsetup.us/product/complete-time-circuits-display-kit/) keypad via BTTFN
 - Advanced network-accessible [Config Portal](#the-config-portal) for setup (http://dtmremote.local)
 - [Home Assistant](#home-assistant--mqtt) (MQTT) support
