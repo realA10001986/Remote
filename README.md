@@ -51,7 +51,9 @@ For information on updating the firmware of your Remote, see [here](#firmware-in
 
 >The following instructions only need to be followed once, on fresh Remotes. They do not need to be repeated after a firmware update.
 
-The first step is to establish access to the Remote's configuration website ("Config Portal") in order to configure your device:
+The first step is to put a **good-quality** ("endurance", "long life", ...) **microSD card into the card slot**. The maximum size is 32GB and the card must be FAT32 formatted. [More information](#sd-card)
+
+The second step is to establish access to the Remote's configuration website ("Config Portal") in order to configure your device:
 
 - Power up your Remote and wait a few seconds.
 - Connect your computer or handheld device to the WiFi network "REM-AP".
