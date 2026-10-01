@@ -16,7 +16,7 @@ Apart from CircuitSetup's [kit](https://circuitsetup.us/product/futaba-remote-st
 - Standard 9V battery adapters with open wire
 - a small speaker
 - 2x male [micro-USB plug with open wire cable](https://www.amazon.com/Maixbomr-Micro-Bare-Wire-Cable/dp/B0BZWMDB15) to turn the "tachometer" header into the charging port, and to connect the ESP32 to power. If your ESP32 has an USB-C connector, use an USB-C cable instead.
-- good quality ("endurance", "long life", ...) microSD card, 32GB max, FAT32 formatted, empty.
+- good quality ("endurance", "industrial", "long life", ...) microSD card, 32GB max, FAT32 formatted, empty.
 
 Luckily, CircuitSetup's kit includes a "STOP" light (and ATM this is even an original Molex light/button). If you do your own: The Stop light is a Molex 1820. This is a bit hard to find, let alone a red one. Clear (white) ones are on ebay; go for the RL ("removable lamp") version, they are easier to modify inside. You can paint the lens using transparent red color, and put a "stop" sticker on top of it. Data for the sticker is in the Labels folder here.
 
