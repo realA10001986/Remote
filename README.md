@@ -41,7 +41,7 @@ Firmware features:
 - Built-in OTA installer for firmware updates and audio files
 - &#128007; &#129370;
 
->This [repository](https://remote.out-a-ti.me) is the upstream source for CircuitSetup's releases. The only difference is that both code and documentation [here](https://remote.out-a-ti.me) might be ahead in development.
+>The firmware in [this repository](https://remote.out-a-ti.me), despite being the upstream source of all forks, is a pure movie-prop firmware and does not support CRSF/ELRS. For CRSF/ELRS support, please see CircuitSetup's repository.
 
 For information on updating the firmware of your Remote, see [here](#firmware-installation--firmware-update).
 
