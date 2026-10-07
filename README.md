@@ -92,10 +92,10 @@ Click on "WiFi Configuration" and either select a network from the top of the pa
   
 >Your Remote requests an IP address via DHCP, unless you entered valid data in the fields for static IP addresses (IP, gateway, netmask, DNS). If the device is inaccessible as a result of incorrect static IPs, 
 >- power-down the device,
->- hold the _Calibration_ button,
->- power-up the device (while still holding the _Calibration_ button)
->- wait until the displays shows a circle animation,
->- press Button _O.O_ twice within 10 seconds,
+>- press the _Calibration_ button and keep it pressed,
+>- power-up the device,
+>- wait until the displays shows an animation,
+>- press button _O.O_ twice within 10 seconds,
 >- wait until the display shows "RST",
 >- then release the _Calibration_ button.
 >
@@ -490,10 +490,6 @@ Afterwards, the Remote and the TCD can communicate wirelessly and
      <td align="left">Toggle firmware update signals at power-up</td>
      <td align="left"><code>7053281</code></td>
     </tr>
-     <tr>
-     <td align="left">Delete static IP address<br>and WiFi-AP password<sup>2</sup></td>
-     <td align="left"><code>7123456</code></td>
-    </tr>
 </table>
 
 1: Board 1.6M or >= 1.7 required; if LiPo battery is properly connected to battery monitor.<br>
@@ -773,10 +769,10 @@ By default, and if this field is empty, the Remote's own WiFi network ("REM-AP")
 
 If you forget this password and are thereby locked out of your Remote, 
 - power-down the device,
-- hold the _Calibration_ button,
-- power-up the device (while still holding the _Calibration_ button)
-- wait until the display shows a counter-clockwise circle animation,
-- press Button _O.O_ twice within 10 seconds,
+- press the _Calibration_ button and keep it pressed,
+- power-up the device,
+- wait until the display shows an animation,
+- press button _O.O_ twice within 10 seconds,
 - wait until the display shows "RST",
 - then release the _Calibration_ button.
 
