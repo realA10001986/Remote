@@ -677,6 +677,8 @@ This clears all settings to their defaults except
 - battery settings,
 - Futaba switch type settings.
 
+Since any configured WiFi connection is deleted as well, the Remote will reboot in AP-Mode.
+
 -->
 
 
