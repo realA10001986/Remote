@@ -662,6 +662,23 @@ Alternatively, you can install the sound-pack the following way:
 </ul>
 </details>
 
+<!--
+## Factory Reset
+
+To reset your Remote to factory default settings, 
+- power-down the device,
+- press the _Calibration_ button and keep it pressed,
+- power-up the device,
+- wait until the display shows an animation,
+- press the _RESET_ button five times within 10 seconds (the display will show "FAC" on the fifth time),
+- then release the _Calibration_ button.
+
+This clears all settings to their defaults except
+- battery settings,
+- Futaba switch type settings.
+
+-->
+
 
 ---
 
